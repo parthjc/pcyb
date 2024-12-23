@@ -1,0 +1,7 @@
+---------Links---------------
+
+Esp8266-NodeMcu: https://amzn.eu/d/eHdvncZ
+
+Esp32: https://robu.in/product/esp32-wroom-32d-iot-development-doard-module-for-arduino/
+
+TPLINK Ac600: https://amzn.in/d/bgNn7g9
