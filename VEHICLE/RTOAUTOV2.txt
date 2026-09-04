@@ -217,7 +217,7 @@ def install_dependencies():
 # 🌐 API CONFIGURATIONS
 # ===================================================================
 
-RAPIDAPI_KEY = "1755c4d766mshb53aa76886edfdfp1f7f35jsn61537572c89f"
+RAPIDAPI_KEY = "eb8d9a97bemsh85f2bd83d4e33e4p15b41bjsn70648918a7da"
 
 WORKING_APIS = [
     {
