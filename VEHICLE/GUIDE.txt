@@ -1,0 +1,8 @@
+# 1. સ્ક્રિપ્ટ સેવ કરો (rc_lookup.py)
+nano rc_lookup.py
+
+# 2. લાઇસન્સ ફાઇલ જનરેટ કરો (વૈકલ્પિક)
+python3 rc_lookup.py --generate-license
+
+# 3. સ્ક્રિપ્ટ ચલાવો
+python3 rc_lookup.py

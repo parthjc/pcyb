@@ -1,0 +1,415 @@
+#!/usr/bin/env python3
+# ZYNTRASEC SECURITY - Advanced Vehicle RC Lookup
+# Copyright © 2026 ZYNTRASEC Security. All Rights Reserved.
+
+import requests
+import json
+import os
+import sys
+import re
+import time
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+# ==================== CONFIGURATION ====================
+VERSION = "8.2.0 ALL-FIELDS"
+AUTHOR = "ZYNTRASEC Security"
+COPYRIGHT = "© 2026 ZYNTRASEC Security. All Rights Reserved."
+YEAR = "2026"
+
+# 🔑 Your API Key
+RAPIDAPI_KEY = "1755c4d766mshb53aa76886edfdfp1f7f35jsn61537572c89f"
+
+# ==================== COLOR CODES ====================
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+# ==================== API CONFIGURATIONS ====================
+WORKING_APIS = [
+    {
+        "name": "Vehicle Info Free API",
+        "url": "https://vehicleinfobyterabaap.vercel.app/lookup",
+        "method": "GET",
+        "headers": {},
+        "params_mapping": {"rc": None}
+    },
+    {
+        "name": "RTO Search Free",
+        "url": "https://www.rtosearch.in/api/get_details.php",
+        "method": "GET",
+        "headers": {},
+        "params_mapping": {"vehicle_no": None}
+    },
+    {
+        "name": "RTO Vehicle Info (RapidAPI)",
+        "url": "https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php",
+        "method": "GET",
+        "headers": {
+            'x-rapidapi-host': 'rto-vehicle-information-india-api.p.rapidapi.com',
+            'x-rapidapi-key': RAPIDAPI_KEY,
+            'Content-Type': 'application/json'
+        },
+        "params_mapping": {"registration_no": None}
+    }
+]
+
+# ==================== UTILITIES ====================
+def clear_screen():
+    os.system("cls" if os.name == "nt" else "clear")
+
+def print_banner():
+    banner = f"""
+{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   ███████╗██╗   ██╗███╗   ██╗████████╗██████╗  █████╗     ║
+║   ╚══███╔╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██╔══██╗██╔══██╗    ║
+║     ███╔╝  ╚████╔╝ ██╔██╗ ██║   ██║   ██████╔╝███████║    ║
+║    ███╔╝    ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██╗██╔══██║    ║
+║   ███████╗   ██║   ██║ ╚████║   ██║   ██║  ██║██║  ██║    ║
+║   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝    ║
+║                                                              ║
+║            🔒 ZYNTRASEC SECURITY ADVANCED 🔒                ║
+║         🚗 RC Lookup - ALL FIELDS                          ║
+║                                                              ║
+║   Version: {VERSION:<10}  Copyright {YEAR}                   ║
+║   {COPYRIGHT}                                                ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝{Colors.END}
+    """
+    print(banner)
+    print(f"{Colors.YELLOW}  ⚠️  DISCLAIMER: For Educational & Ethical Use Only{Colors.END}")
+    print("  " + "=" * 62 + "\n")
+
+def loading_animation():
+    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    for i in range(20):
+        sys.stdout.write(f"\r  {Colors.CYAN}🔍 Searching{Colors.END} {frames[i % len(frames)]} ")
+        sys.stdout.flush()
+        time.sleep(0.05)
+    print()
+
+def validate_indian_rc(rc: str) -> bool:
+    state_codes = [
+        "AP","AR","AS","BR","CG","GA","GJ","HR","HP","JK","JH",
+        "KA","KL","MP","MH","MN","ML","MZ","NL","OR","PB","RJ",
+        "SK","TN","TR","UP","WB","AN","CH","DN","DD","DL","LD",
+        "PY","TS","TG","LA"
+    ]
+    pattern = r'^(' + '|'.join(state_codes) + r')[-]?\d{1,2}[-]?[A-Z]{1,2}[-]?\d{4}$'
+    return re.match(pattern, rc) is not None
+
+def fetch_from_api(rc: str, api_config: Dict) -> Dict:
+    try:
+        params = {}
+        if api_config.get("params_mapping"):
+            for param_key, _ in api_config["params_mapping"].items():
+                params[param_key] = rc
+
+        response = requests.get(
+            api_config["url"],
+            params=params,
+            headers=api_config.get("headers", {}),
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"HTTP {response.status_code}"}
+    except requests.exceptions.Timeout:
+        return {"error": "Timeout"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Connection Error"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def flatten_dict(obj: Any, parent_key: str = '', sep: str = '_') -> Dict:
+    items = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, (dict, list)):
+                items.extend(flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            new_key = f"{parent_key}{sep}{i}" if parent_key else str(i)
+            if isinstance(v, (dict, list)):
+                items.extend(flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+    return dict(items)
+
+def normalize_data(raw_data: Dict) -> Dict:
+    flat = flatten_dict(raw_data)
+    normalized = {}
+    for key, value in flat.items():
+        clean_key = key
+        for prefix in ['data_', 'result_', 'response_', 'vehicle_', 'rc_']:
+            if key.startswith(prefix):
+                clean_key = key[len(prefix):]
+                break
+        normalized[clean_key] = value
+    normalized['_raw'] = raw_data
+    return normalized
+
+def display_vehicle_info(data: Dict, rc: str, api_name: str):
+    state = "Unknown"
+    if rc:
+        clean_rc = re.sub(r'[-]', '', rc)
+        state = clean_rc[:2].upper() if len(clean_rc) >= 2 else "Unknown"
+
+    print(f"\n{Colors.GREEN}{'='*62}{Colors.END}")
+    print(f"{Colors.CYAN}  🚗 VEHICLE INFORMATION - {rc}{Colors.END}")
+    print(f"{Colors.MAGENTA}  📍 State: {state}{Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR}{Colors.END}")
+    print(f"{Colors.GREEN}{'='*62}{Colors.END}")
+
+    if "error" in data:
+        print(f"{Colors.RED}  ❌ Error: {data['error']}{Colors.END}")
+        return
+
+    raw_data = data.pop('_raw', None)
+
+    field_labels = {
+        'owner_name': '👤 Owner Name',
+        'owner': '👤 Owner Name',
+        'name': '👤 Owner Name',
+        'full_name': '👤 Owner Name',
+        'father_name': '👨‍👦 Father Name',
+        'father': '👨‍👦 Father Name',
+        'address': '📍 Address',
+        'addr': '📍 Address',
+        'address_line': '📍 Address',
+        'city': '🏙️ City',
+        'city_name': '🏙️ City',
+        'state': '📍 State',
+        'state_name': '📍 State',
+        'country': '🌍 Country',
+        'country_name': '🌍 Country',
+        'phone': '📞 Phone Number',
+        'mobile': '📞 Phone Number',
+        'phone_number': '📞 Phone Number',
+        'mobile_number': '📞 Phone Number',
+        'contact': '📞 Phone Number',
+        'email': '📧 Email',
+        'email_id': '📧 Email',
+        'rto': '🏢 RTO Office',
+        'rto_office': '🏢 RTO Office',
+        'registered_rto': '🏢 Registered RTO',
+        'registration_no': '📋 Registration No',
+        'registration_number': '📋 Registration No',
+        'vehicle_no': '📋 Registration No',
+        'rc_number': '📋 Registration No',
+        'reg_no': '📋 Registration No',
+        'registration_date': '📅 Registration Date',
+        'reg_date': '📅 Registration Date',
+        'date_of_registration': '📅 Registration Date',
+        'vehicle_class': '🚗 Vehicle Class',
+        'class': '🚗 Vehicle Class',
+        'vehicle_type': '🚗 Vehicle Type',
+        'maker': '🏭 Maker',
+        'manufacturer': '🏭 Maker',
+        'make': '🏭 Maker',
+        'model': '🔧 Model',
+        'model_name': '🔧 Model',
+        'fuel_type': '⛽ Fuel Type',
+        'fuel': '⛽ Fuel Type',
+        'fuel_norm': '📊 Fuel Norms',
+        'emission_norm': '📊 Fuel Norms',
+        'engine_no': '🔢 Engine Number',
+        'engine_number': '🔢 Engine Number',
+        'chassis_no': '🔢 Chassis Number',
+        'chassis_number': '🔢 Chassis Number',
+        'fitness_upto': '✅ Fitness Upto',
+        'fitness_valid_till': '✅ Fitness Upto',
+        'insurance_company': '🛡️ Insurance Company',
+        'insurer': '🛡️ Insurance Company',
+        'insurance_policy_no': '📄 Insurance Policy',
+        'policy_no': '📄 Insurance Policy',
+        'policy_number': '📄 Insurance Policy',
+        'insurance_upto': '📆 Insurance Upto',
+        'insurance_valid_till': '📆 Insurance Upto',
+        'owner_serial': '👥 Owner Serial No',
+        'owner_serial_number': '👥 Owner Serial No',
+        'owner_no': '👥 Owner Serial No',
+        'puc_valid_upto': '📋 PUC Valid Upto',
+        'puc_expiry': '📋 PUC Valid Upto',
+        'puc_valid_till': '📋 PUC Valid Upto',
+        'road_tax_upto': '💰 Road Tax Upto',
+        'tax_valid_till': '💰 Road Tax Upto',
+        'registration_status': '📊 Registration Status',
+        'status': '📊 Registration Status',
+        'color': '🎨 Color',
+        'vehicle_color': '🎨 Color',
+        'colour': '🎨 Color',
+        'seating_capacity': '💺 Seating Capacity',
+        'seats': '💺 Seating Capacity',
+        'cubic_capacity': '🔧 Engine CC',
+        'engine_cc': '🔧 Engine CC',
+        'cc': '🔧 Engine CC',
+        'manufactured_year': '🏗️ Manufactured Year',
+        'year_of_manufacture': '🏗️ Manufactured Year',
+        'manufacture_year': '🏗️ Manufactured Year',
+        'registered_state': '📍 Registered State',
+        'reg_state': '📍 Registered State'
+    }
+
+    mapped = {}
+    unmapped = {}
+    for key, value in data.items():
+        if key in field_labels:
+            mapped[key] = value
+        else:
+            found = False
+            for label_key, label_val in field_labels.items():
+                if label_key.lower() in key.lower() or key.lower() in label_key.lower():
+                    mapped[key] = value
+                    found = True
+                    break
+            if not found:
+                unmapped[key] = value
+
+    displayed = 0
+    for key, value in mapped.items():
+        label = field_labels.get(key, key.replace('_', ' ').title())
+        display_value = value if value else 'N/A'
+        print(f"  {Colors.YELLOW}{label:<40}{Colors.END} : {Colors.WHITE}{display_value}{Colors.END}")
+        displayed += 1
+
+    if unmapped:
+        print(f"\n{Colors.CYAN}{'─'*62}{Colors.END}")
+        print(f"{Colors.CYAN}  📌 Additional Data (Unmapped Fields):{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*62}{Colors.END}")
+        for key, value in unmapped.items():
+            if key.startswith('_') or key == '_raw':
+                continue
+            display_value = value if value else 'N/A'
+            label = key.replace('_', ' ').title()
+            print(f"  {Colors.DIM}{label:<40}{Colors.END} : {Colors.WHITE}{display_value}{Colors.END}")
+            displayed += 1
+
+    if displayed == 0:
+        print(f"{Colors.RED}  No vehicle data found{Colors.END}")
+
+    if raw_data:
+        print(f"\n{Colors.CYAN}{'─'*62}{Colors.END}")
+        print(f"{Colors.CYAN}  📄 Raw API Response (Complete):{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*62}{Colors.END}")
+        raw_json = json.dumps(raw_data, indent=2, ensure_ascii=False)
+        if len(raw_json) > 2000:
+            print(f"{Colors.DIM}{raw_json[:2000]}...{Colors.END}")
+            print(f"{Colors.DIM}  (truncated, full data saved in JSON file){Colors.END}")
+        else:
+            print(f"{Colors.DIM}{raw_json}{Colors.END}")
+
+    print(f"{Colors.GREEN}{'='*62}{Colors.END}")
+    print(f"{Colors.CYAN}  📡 Data from: {api_name}{Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR} | All Rights Reserved{Colors.END}")
+
+def save_results(rc: str, data: Dict, raw: Dict) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ZYNTRASEC_{rc}_{timestamp}.json"
+    data_to_save = {
+        "normalized": data,
+        "raw": raw,
+        "metadata": {
+            'tool': 'ZYNTRASEC Security All-Fields',
+            'version': VERSION,
+            'timestamp': datetime.now().isoformat(),
+            'rc_checked': rc
+        }
+    }
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data_to_save, f, indent=4, ensure_ascii=False)
+    print(f"\n  💾 Results saved to: {filename}")
+    return filename
+
+# ==================== MAIN ====================
+def main():
+    try:
+        clear_screen()
+        print_banner()
+
+        print(f"{Colors.CYAN}  🔍 Enter Indian RC Number{Colors.END}")
+        print(f"{Colors.YELLOW}  📝 Format: GJ-05-VC-1234 or GJ05VC1234{Colors.END}")
+        print(f"{Colors.DIM}  💡 Shows ALL fields from API response{Colors.END}")
+        print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR}{Colors.END}")
+        print("  (Press Ctrl+C to exit)\n")
+
+        while True:
+            try:
+                rc = input(f"{Colors.GREEN}  🚗 RC Number: {Colors.END}").strip().upper()
+                if not rc:
+                    print(f"{Colors.RED}  ❌ Please enter a valid RC number{Colors.END}")
+                    continue
+
+                if not validate_indian_rc(rc):
+                    print(f"{Colors.YELLOW}  ⚠️ Warning: Not a valid Indian RC format{Colors.END}")
+                    confirm = input("  Continue anyway? (y/n): ").strip().lower()
+                    if confirm != 'y':
+                        continue
+
+                print(f"\n  🔄 Searching for {rc}...")
+                loading_animation()
+
+                data = None
+                raw_data = None
+                used_api = None
+                attempted = 0
+
+                for api_config in WORKING_APIS:
+                    attempted += 1
+                    api_name = api_config["name"]
+                    print(f"  ⏳ [{attempted}/{len(WORKING_APIS)}] Trying {api_name}...")
+                    result = fetch_from_api(rc, api_config)
+
+                    if "error" not in result and len(result) > 0:
+                        raw_data = result
+                        data = normalize_data(result)
+                        used_api = api_name
+                        print(f"  {Colors.GREEN}✅ Success!{Colors.END}")
+                        break
+                    else:
+                        error = result.get("error", "No data") if isinstance(result, dict) else "Invalid"
+                        print(f"  {Colors.RED}❌ {error}{Colors.END}")
+                        time.sleep(0.2)
+
+                if data is not None:
+                    display_vehicle_info(data, rc, used_api)
+                    save_results(rc, data, raw_data if raw_data else {})
+                    print(f"\n  {Colors.GREEN}✅ All data fetched successfully!{Colors.END}")
+                else:
+                    print(f"\n  {Colors.RED}❌ All APIs failed!{Colors.END}")
+                    print(f"  {Colors.YELLOW}💡 Suggestions:{Colors.END}")
+                    print("    1. Check internet connection")
+                    print("    2. RC number might be incorrect")
+                    print("    3. Try a different RC number")
+
+                print(f"\n{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR}{Colors.END}")
+                print("\n" + "-" * 62)
+                print("  Press Enter to continue, Ctrl+C to exit\n")
+                input()
+
+            except KeyboardInterrupt:
+                print(f"\n\n  👋 Exiting...")
+                sys.exit(0)
+            except Exception as e:
+                print(f"  {Colors.RED}❌ Unexpected error: {e}{Colors.END}")
+                continue
+
+    except KeyboardInterrupt:
+        print(f"\n\n  👋 Exiting...")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()

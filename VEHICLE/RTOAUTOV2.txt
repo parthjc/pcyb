@@ -1,0 +1,689 @@
+#!/usr/bin/env python3
+# ZYNTRASEC SECURITY - Advanced RC Lookup (Menu Driven)
+# Copyright © 2026 ZYNTRASEC Security. All Rights Reserved.
+
+import os
+import sys
+import subprocess
+import importlib
+
+# ===================================================================
+# 📦 AUTO-INSTALL DEPENDENCIES (on first run)
+# ===================================================================
+
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+        print(f"✅ Installed: {package}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install {package}: {e}")
+        return False
+
+def ensure_requirements():
+    required = ['requests']
+    for pkg in required:
+        try:
+            importlib.import_module(pkg)
+        except ImportError:
+            print(f"⚠️ {pkg} not found. Installing...")
+            install_package(pkg)
+
+ensure_requirements()
+
+# Now import
+import requests
+import json
+import re
+import time
+import hashlib
+import uuid
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+# ===================================================================
+# 🔒 SECURITY CONFIGURATION
+# ===================================================================
+
+LICENSE_KEY = "ZYNTRASEC@2026"
+ALLOWED_MAC = ""  # Empty = auto-detect
+EXPIRY_DATE = "2030-12-31"
+LICENSE_FILE = "license.lic"
+VERSION = "8.6.0 MENU+INSTALL"
+AUTHOR = "ZYNTRASEC Security"
+COPYRIGHT = "© 2026 ZYNTRASEC Security. All Rights Reserved."
+YEAR = "2026"
+
+# ===================================================================
+# 🎨 COLORS
+# ===================================================================
+
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+# ===================================================================
+# 🛡️ SECURITY FUNCTIONS
+# ===================================================================
+
+def get_mac_address():
+    try:
+        mac = subprocess.check_output(['ifconfig', 'eth0'], text=True)
+        mac_match = re.search(r'ether\s+([0-9a-fA-F:]{17})', mac)
+        if mac_match:
+            return mac_match.group(1)
+    except:
+        pass
+    try:
+        mac = subprocess.check_output(['ifconfig', 'en0'], text=True)
+        mac_match = re.search(r'ether\s+([0-9a-fA-F:]{17})', mac)
+        if mac_match:
+            return mac_match.group(1)
+    except:
+        pass
+    try:
+        mac = subprocess.check_output(['ipconfig', '/all'], text=True)
+        mac_match = re.search(r'Physical Address[\s.]+: ([0-9a-fA-F-]{17})', mac)
+        if mac_match:
+            return mac_match.group(1).replace('-', ':')
+    except:
+        pass
+    try:
+        mac = uuid.getnode()
+        return ':'.join(['{:02x}'.format((mac >> elements) & 0xff) for elements in range(5, -1, -1)])
+    except:
+        return None
+
+def auto_set_mac():
+    global ALLOWED_MAC
+    if not ALLOWED_MAC:
+        detected = get_mac_address()
+        if detected:
+            ALLOWED_MAC = detected
+            return True
+    return False
+
+def verify_license_key():
+    print(f"{Colors.CYAN}  🔒 Enter license key to continue{Colors.END}")
+    entered = input(f"{Colors.MAGENTA}  🔑 License Key: {Colors.END}").strip()
+    expected_hash = hashlib.sha256(LICENSE_KEY.encode()).hexdigest()
+    entered_hash = hashlib.sha256(entered.encode()).hexdigest()
+    if entered_hash == expected_hash:
+        print(f"{Colors.GREEN}  ✅ License verified!{Colors.END}")
+        return True
+    else:
+        print(f"{Colors.RED}  ❌ Invalid license key!{Colors.END}")
+        return False
+
+def verify_license_file():
+    if not os.path.exists(LICENSE_FILE):
+        return False
+    try:
+        with open(LICENSE_FILE, 'r') as f:
+            data = json.load(f)
+        expected_hash = hashlib.sha256(LICENSE_KEY.encode()).hexdigest()
+        if data.get('key_hash') != expected_hash:
+            return False
+        if data.get('mac'):
+            current_mac = get_mac_address()
+            if current_mac and current_mac.lower() != data.get('mac', '').lower():
+                return False
+        if data.get('expiry'):
+            current = datetime.now().date()
+            expiry = datetime.strptime(data['expiry'], "%Y-%m-%d").date()
+            if current > expiry:
+                return False
+        return True
+    except:
+        return False
+
+def verify_mac():
+    if not ALLOWED_MAC:
+        return True
+    current_mac = get_mac_address()
+    if not current_mac:
+        return True
+    return current_mac.lower() == ALLOWED_MAC.lower()
+
+def verify_date():
+    try:
+        current = datetime.now().date()
+        expiry = datetime.strptime(EXPIRY_DATE, "%Y-%m-%d").date()
+        return current <= expiry
+    except:
+        return True
+
+def anti_debug():
+    if sys.gettrace() is not None:
+        print(f"{Colors.RED}  ❌ Debugger detected!{Colors.END}")
+        sys.exit(1)
+
+def check_all_security():
+    anti_debug()
+    auto_set_mac()
+    if not verify_license_file():
+        if not verify_license_key():
+            return False
+    if not verify_mac():
+        print(f"{Colors.RED}  ❌ MAC mismatch!{Colors.END}")
+        return False
+    if not verify_date():
+        print(f"{Colors.RED}  ❌ License expired!{Colors.END}")
+        return False
+    return True
+
+def generate_license_file():
+    if not ALLOWED_MAC:
+        auto_set_mac()
+    mac = ALLOWED_MAC or get_mac_address() or "00:00:00:00:00:00"
+    data = {
+        "key_hash": hashlib.sha256(LICENSE_KEY.encode()).hexdigest(),
+        "expiry": EXPIRY_DATE,
+        "mac": mac,
+        "generated": datetime.now().isoformat(),
+        "version": VERSION
+    }
+    with open(LICENSE_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+    print(f"{Colors.GREEN}  ✅ License file generated: {LICENSE_FILE}{Colors.END}")
+    print(f"{Colors.DIM}     Key: {LICENSE_KEY}{Colors.END}")
+    print(f"{Colors.DIM}     MAC: {mac}{Colors.END}")
+    print(f"{Colors.DIM}     Expiry: {EXPIRY_DATE}{Colors.END}")
+
+# ===================================================================
+# 📦 INSTALL DEPENDENCIES FUNCTION (Manual)
+# ===================================================================
+
+def install_dependencies():
+    print(f"\n{Colors.CYAN}  📦 Installing/Updating dependencies...{Colors.END}")
+    packages = ['requests']  # Add more if needed
+    for pkg in packages:
+        print(f"  ⏳ Installing {pkg}...")
+        result = install_package(pkg)
+        if result:
+            print(f"  {Colors.GREEN}✅ {pkg} installed/updated.{Colors.END}")
+        else:
+            print(f"  {Colors.RED}❌ Failed to install {pkg}.{Colors.END}")
+    print(f"{Colors.GREEN}  ✅ Dependency check complete!{Colors.END}")
+
+# ===================================================================
+# 🌐 API CONFIGURATIONS
+# ===================================================================
+
+RAPIDAPI_KEY = "1755c4d766mshb53aa76886edfdfp1f7f35jsn61537572c89f"
+
+WORKING_APIS = [
+    {
+        "name": "Vehicle Info Free API",
+        "url": "https://vehicleinfobyterabaap.vercel.app/lookup",
+        "method": "GET",
+        "headers": {},
+        "params_mapping": {"rc": None}
+    },
+    {
+        "name": "RTO Search Free",
+        "url": "https://www.rtosearch.in/api/get_details.php",
+        "method": "GET",
+        "headers": {},
+        "params_mapping": {"vehicle_no": None}
+    },
+    {
+        "name": "RTO Vehicle Info (RapidAPI)",
+        "url": "https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php",
+        "method": "GET",
+        "headers": {
+            'x-rapidapi-host': 'rto-vehicle-information-india-api.p.rapidapi.com',
+            'x-rapidapi-key': RAPIDAPI_KEY,
+            'Content-Type': 'application/json'
+        },
+        "params_mapping": {"registration_no": None}
+    }
+]
+
+# ===================================================================
+# 🛠️ UTILITIES
+# ===================================================================
+
+def clear_screen():
+    os.system("cls" if os.name == "nt" else "clear")
+
+def print_banner():
+    banner = f"""
+{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   ███████╗██╗   ██╗███╗   ██╗████████╗██████╗  █████╗     ║
+║   ╚══███╔╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██╔══██╗██╔══██╗    ║
+║     ███╔╝  ╚████╔╝ ██╔██╗ ██║   ██║   ██████╔╝███████║    ║
+║    ███╔╝    ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██╗██╔══██║    ║
+║   ███████╗   ██║   ██║ ╚████║   ██║   ██║  ██║██║  ██║    ║
+║   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝    ║
+║                                                              ║
+║            🔒 ZYNTRASEC SECURITY ADVANCED 🔒                ║
+║         🚗 RC Lookup - Menu Driven                         ║
+║                                                              ║
+║   Version: {VERSION:<10}  Copyright {YEAR}                   ║
+║   {COPYRIGHT}                                                ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝{Colors.END}
+    """
+    print(banner)
+
+def show_menu():
+    print(f"\n{Colors.CYAN}  ╔══════════════════════════════════════════════════════════════╗")
+    print(f"  ║                        📋 MAIN MENU                                 ║")
+    print(f"  ╠═══════════════════════════════════════════════════════════════════╣")
+    print(f"  ║  {Colors.GREEN}1{Colors.END} 🔍 RC Lookup (Search Vehicle)                    ║")
+    print(f"  ║  {Colors.GREEN}2{Colors.END} 📄 Generate License File                          ║")
+    print(f"  ║  {Colors.GREEN}3{Colors.END} 🔐 Show Security Status                          ║")
+    print(f"  ║  {Colors.GREEN}4{Colors.END} ⚙️  Show System Info                             ║")
+    print(f"  ║  {Colors.GREEN}5{Colors.END} 🧹 Clear Screen                                  ║")
+    print(f"  ║  {Colors.GREEN}6{Colors.END} 📦 Install/Update Dependencies (pip install)    ║")   # <-- New option
+    print(f"  ║  {Colors.RED}7{Colors.END} 🚪 Exit                                            ║")
+    print(f"  ╚═══════════════════════════════════════════════════════════════════╝{Colors.END}")
+
+def show_security_status():
+    print(f"\n{Colors.CYAN}  🔒 SECURITY STATUS{Colors.END}")
+    print(f"  {'─'*50}")
+    
+    # License Key
+    if os.path.exists(LICENSE_FILE):
+        print(f"  {Colors.GREEN}✅{Colors.END} License File: Present")
+    else:
+        print(f"  {Colors.YELLOW}⚠️{Colors.END} License File: Not found (key required)")
+    
+    # MAC
+    mac = get_mac_address()
+    if mac:
+        print(f"  {Colors.GREEN}✅{Colors.END} MAC Address: {mac}")
+        if ALLOWED_MAC:
+            if mac.lower() == ALLOWED_MAC.lower():
+                print(f"  {Colors.GREEN}✅{Colors.END} MAC Lock: Matched")
+            else:
+                print(f"  {Colors.RED}❌{Colors.END} MAC Lock: Mismatch (Expected: {ALLOWED_MAC})")
+        else:
+            print(f"  {Colors.YELLOW}⚠️{Colors.END} MAC Lock: Auto-mode (not set)")
+    else:
+        print(f"  {Colors.RED}❌{Colors.END} MAC Address: Not detected")
+    
+    # Date
+    try:
+        current = datetime.now().date()
+        expiry = datetime.strptime(EXPIRY_DATE, "%Y-%m-%d").date()
+        if current <= expiry:
+            days = (expiry - current).days
+            print(f"  {Colors.GREEN}✅{Colors.END} Date Expiry: {EXPIRY_DATE} ({days} days left)")
+        else:
+            print(f"  {Colors.RED}❌{Colors.END} Date Expiry: EXPIRED on {EXPIRY_DATE}")
+    except:
+        print(f"  {Colors.YELLOW}⚠️{Colors.END} Date Expiry: Check failed")
+    
+    # APIs
+    print(f"  {Colors.GREEN}✅{Colors.END} APIs: {len(WORKING_APIS)} available")
+    print(f"  {'─'*50}")
+
+def show_system_info():
+    print(f"\n{Colors.CYAN}  ⚙️ SYSTEM INFORMATION{Colors.END}")
+    print(f"  {'─'*50}")
+    print(f"  Python Version: {sys.version.split()[0]}")
+    print(f"  OS: {os.name}")
+    print(f"  Script Version: {VERSION}")
+    print(f"  Copyright: {COPYRIGHT}")
+    mac = get_mac_address()
+    print(f"  MAC Address: {mac or 'Unknown'}")
+    print(f"  License File: {'Present' if os.path.exists(LICENSE_FILE) else 'Not found'}")
+    print(f"  Expiry Date: {EXPIRY_DATE}")
+    print(f"  Installed Packages:")
+    try:
+        output = subprocess.check_output([sys.executable, '-m', 'pip', 'freeze'], text=True)
+        packages = [line.split('==')[0] for line in output.strip().split('\n') if line]
+        for pkg in ['requests']:
+            status = '✅' if pkg in packages else '❌'
+            print(f"    {status} {pkg}")
+    except:
+        print("    Could not fetch package list")
+    print(f"  {'─'*50}")
+
+# ===================================================================
+# 🔍 RC LOOKUP FUNCTIONS
+# ===================================================================
+
+def loading_animation():
+    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    for i in range(20):
+        sys.stdout.write(f"\r  {Colors.CYAN}🔍 Searching{Colors.END} {frames[i % len(frames)]} ")
+        sys.stdout.flush()
+        time.sleep(0.05)
+    print()
+
+def validate_indian_rc(rc: str) -> bool:
+    state_codes = [
+        "AP","AR","AS","BR","CG","GA","GJ","HR","HP","JK","JH",
+        "KA","KL","MP","MH","MN","ML","MZ","NL","OR","PB","RJ",
+        "SK","TN","TR","UP","WB","AN","CH","DN","DD","DL","LD",
+        "PY","TS","TG","LA"
+    ]
+    pattern = r'^(' + '|'.join(state_codes) + r')[-]?\d{1,2}[-]?[A-Z]{1,2}[-]?\d{4}$'
+    return re.match(pattern, rc) is not None
+
+def fetch_from_api(rc: str, api_config: Dict) -> Dict:
+    try:
+        params = {}
+        if api_config.get("params_mapping"):
+            for param_key, _ in api_config["params_mapping"].items():
+                params[param_key] = rc
+        response = requests.get(
+            api_config["url"],
+            params=params,
+            headers=api_config.get("headers", {}),
+            timeout=10
+        )
+        if response.status_code == 200:
+            return response.json()
+        return {"error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def flatten_dict(obj: Any, parent_key: str = '', sep: str = '_') -> Dict:
+    items = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, (dict, list)):
+                items.extend(flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            new_key = f"{parent_key}{sep}{i}" if parent_key else str(i)
+            if isinstance(v, (dict, list)):
+                items.extend(flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+    return dict(items)
+
+def normalize_data(raw_data: Dict) -> Dict:
+    flat = flatten_dict(raw_data)
+    normalized = {}
+    for key, value in flat.items():
+        clean_key = key
+        for prefix in ['data_', 'result_', 'response_', 'vehicle_', 'rc_']:
+            if key.startswith(prefix):
+                clean_key = key[len(prefix):]
+                break
+        normalized[clean_key] = value
+    normalized['_raw'] = raw_data
+    return normalized
+
+def display_vehicle_info(data: Dict, rc: str, api_name: str):
+    state = "Unknown"
+    if rc:
+        clean_rc = re.sub(r'[-]', '', rc)
+        state = clean_rc[:2].upper() if len(clean_rc) >= 2 else "Unknown"
+
+    print(f"\n{Colors.GREEN}{'='*62}{Colors.END}")
+    print(f"{Colors.CYAN}  🚗 VEHICLE INFORMATION - {rc}{Colors.END}")
+    print(f"{Colors.MAGENTA}  📍 State: {state}{Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR}{Colors.END}")
+    print(f"{Colors.GREEN}{'='*62}{Colors.END}")
+
+    if "error" in data:
+        print(f"{Colors.RED}  ❌ Error: {data['error']}{Colors.END}")
+        return
+
+    raw_data = data.pop('_raw', None)
+
+    field_labels = {
+        'owner_name': '👤 Owner Name',
+        'owner': '👤 Owner Name',
+        'name': '👤 Owner Name',
+        'father_name': '👨‍👦 Father Name',
+        'father': '👨‍👦 Father Name',
+        'address': '📍 Address',
+        'city': '🏙️ City',
+        'city_name': '🏙️ City',
+        'state': '📍 State',
+        'state_name': '📍 State',
+        'country': '🌍 Country',
+        'phone': '📞 Phone Number',
+        'mobile': '📞 Phone Number',
+        'email': '📧 Email',
+        'rto': '🏢 RTO Office',
+        'registered_rto': '🏢 Registered RTO',
+        'registration_no': '📋 Registration No',
+        'registration_number': '📋 Registration No',
+        'vehicle_no': '📋 Registration No',
+        'rc_number': '📋 Registration No',
+        'registration_date': '📅 Registration Date',
+        'vehicle_class': '🚗 Vehicle Class',
+        'maker': '🏭 Maker',
+        'manufacturer': '🏭 Maker',
+        'model': '🔧 Model',
+        'fuel_type': '⛽ Fuel Type',
+        'fuel_norm': '📊 Fuel Norms',
+        'engine_no': '🔢 Engine Number',
+        'chassis_no': '🔢 Chassis Number',
+        'fitness_upto': '✅ Fitness Upto',
+        'insurance_company': '🛡️ Insurance Company',
+        'insurance_policy_no': '📄 Insurance Policy',
+        'insurance_upto': '📆 Insurance Upto',
+        'owner_serial': '👥 Owner Serial No',
+        'puc_valid_upto': '📋 PUC Valid Upto',
+        'road_tax_upto': '💰 Road Tax Upto',
+        'registration_status': '📊 Registration Status',
+        'color': '🎨 Color',
+        'seating_capacity': '💺 Seating Capacity',
+        'cubic_capacity': '🔧 Engine CC',
+        'manufactured_year': '🏗️ Manufactured Year',
+        'registered_state': '📍 Registered State'
+    }
+
+    mapped = {}
+    unmapped = {}
+    for key, value in data.items():
+        if key in field_labels:
+            mapped[key] = value
+        else:
+            found = False
+            for label_key, label_val in field_labels.items():
+                if label_key.lower() in key.lower() or key.lower() in label_key.lower():
+                    mapped[key] = value
+                    found = True
+                    break
+            if not found and not key.startswith('_'):
+                unmapped[key] = value
+
+    displayed = 0
+    for key, value in mapped.items():
+        label = field_labels.get(key, key.replace('_', ' ').title())
+        display_value = value if value else 'N/A'
+        print(f"  {Colors.YELLOW}{label:<40}{Colors.END} : {Colors.WHITE}{display_value}{Colors.END}")
+        displayed += 1
+
+    if unmapped:
+        print(f"\n{Colors.CYAN}{'─'*62}{Colors.END}")
+        print(f"{Colors.CYAN}  📌 Additional Data:{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*62}{Colors.END}")
+        for key, value in unmapped.items():
+            if key == '_raw':
+                continue
+            display_value = value if value else 'N/A'
+            label = key.replace('_', ' ').title()
+            print(f"  {Colors.DIM}{label:<40}{Colors.END} : {Colors.WHITE}{display_value}{Colors.END}")
+            displayed += 1
+
+    if displayed == 0:
+        print(f"{Colors.RED}  No vehicle data found{Colors.END}")
+
+    if raw_data:
+        print(f"\n{Colors.CYAN}{'─'*62}{Colors.END}")
+        print(f"{Colors.CYAN}  📄 Raw API Response:{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*62}{Colors.END}")
+        raw_json = json.dumps(raw_data, indent=2, ensure_ascii=False)
+        if len(raw_json) > 2000:
+            print(f"{Colors.DIM}{raw_json[:2000]}...{Colors.END}")
+            print(f"{Colors.DIM}  (truncated, full data in JSON file){Colors.END}")
+        else:
+            print(f"{Colors.DIM}{raw_json}{Colors.END}")
+
+    print(f"{Colors.GREEN}{'='*62}{Colors.END}")
+    print(f"{Colors.CYAN}  📡 Data from: {api_name}{Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR} | All Rights Reserved{Colors.END}")
+
+def save_results(rc: str, data: Dict, raw: Dict) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ZYNTRASEC_{rc}_{timestamp}.json"
+    data_to_save = {
+        "normalized": data,
+        "raw": raw,
+        "metadata": {
+            'tool': 'ZYNTRASEC Security Menu',
+            'version': VERSION,
+            'timestamp': datetime.now().isoformat(),
+            'rc_checked': rc,
+            'licensed_to': 'ZYNTRASEC SECURITY',
+            'expiry_date': EXPIRY_DATE
+        }
+    }
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data_to_save, f, indent=4, ensure_ascii=False)
+    print(f"\n  💾 Results saved to: {filename}")
+    return filename
+
+def rc_lookup():
+    """Main RC lookup function."""
+    clear_screen()
+    print_banner()
+    print(f"{Colors.CYAN}  🔍 Enter Indian RC Number{Colors.END}")
+    print(f"{Colors.YELLOW}  📝 Format: GJ-05-VC-1234 or GJ05VC1234{Colors.END}")
+    print(f"{Colors.DIM}  💡 Press Enter to go back to menu{Colors.END}\n")
+    
+    while True:
+        rc = input(f"{Colors.GREEN}  🚗 RC Number (or Enter to go back): {Colors.END}").strip().upper()
+        if not rc:
+            return
+        
+        if not validate_indian_rc(rc):
+            print(f"{Colors.YELLOW}  ⚠️ Not a valid Indian RC format{Colors.END}")
+            confirm = input("  Continue anyway? (y/n): ").strip().lower()
+            if confirm != 'y':
+                continue
+
+        print(f"\n  🔄 Searching for {rc}...")
+        loading_animation()
+
+        data = None
+        raw_data = None
+        used_api = None
+        attempted = 0
+
+        for api_config in WORKING_APIS:
+            attempted += 1
+            api_name = api_config["name"]
+            print(f"  ⏳ [{attempted}/{len(WORKING_APIS)}] Trying {api_name}...")
+            result = fetch_from_api(rc, api_config)
+
+            if "error" not in result and len(result) > 0:
+                raw_data = result
+                data = normalize_data(result)
+                used_api = api_name
+                print(f"  {Colors.GREEN}✅ Success!{Colors.END}")
+                break
+            else:
+                error = result.get("error", "No data") if isinstance(result, dict) else "Invalid"
+                print(f"  {Colors.RED}❌ {error}{Colors.END}")
+                time.sleep(0.2)
+
+        if data is not None:
+            display_vehicle_info(data, rc, used_api)
+            save_results(rc, data, raw_data if raw_data else {})
+            print(f"\n  {Colors.GREEN}✅ All data fetched successfully!{Colors.END}")
+        else:
+            print(f"\n  {Colors.RED}❌ All APIs failed!{Colors.END}")
+            print(f"  {Colors.YELLOW}💡 Check internet or try another RC{Colors.END}")
+
+        print("\n  Press Enter to continue or type 'menu' to go back")
+        choice = input().strip().lower()
+        if choice == 'menu':
+            return
+
+# ===================================================================
+# 🚀 MAIN MENU LOOP
+# ===================================================================
+
+def main():
+    # First security check
+    anti_debug()
+    auto_set_mac()
+    
+    # Check if license exists
+    if not verify_license_file():
+        print(f"{Colors.YELLOW}  ⚠️ License not found. Please enter key.{Colors.END}")
+        if not verify_license_key():
+            print(f"{Colors.RED}  Exiting...{Colors.END}")
+            sys.exit(1)
+    
+    if not verify_mac():
+        print(f"{Colors.RED}  ❌ MAC mismatch!{Colors.END}")
+        sys.exit(1)
+    
+    if not verify_date():
+        print(f"{Colors.RED}  ❌ License expired!{Colors.END}")
+        sys.exit(1)
+    
+    clear_screen()
+    print_banner()
+    print(f"{Colors.GREEN}  ✅ All security checks passed!{Colors.END}\n")
+    
+    while True:
+        show_menu()
+        choice = input(f"\n{Colors.CYAN}  👉 Enter your choice (1-7): {Colors.END}").strip()
+        
+        if choice == '1':
+            rc_lookup()
+            clear_screen()
+            print_banner()
+        elif choice == '2':
+            generate_license_file()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '3':
+            show_security_status()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '4':
+            show_system_info()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '5':
+            clear_screen()
+            print_banner()
+        elif choice == '6':
+            install_dependencies()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '7':
+            print(f"\n{Colors.GREEN}  👋 Exiting ZYNTRASEC SECURITY...{Colors.END}")
+            print(f"  {COPYRIGHT}\n")
+            sys.exit(0)
+        else:
+            print(f"{Colors.RED}  ❌ Invalid choice! Please enter 1-7.{Colors.END}")
+            time.sleep(1)
+
+if __name__ == "__main__":
+    # Check for generate-license argument
+    if len(sys.argv) > 1 and sys.argv[1] == "--generate-license":
+        print(f"{Colors.CYAN}Generating license file...{Colors.END}")
+        generate_license_file()
+        sys.exit(0)
+    main()

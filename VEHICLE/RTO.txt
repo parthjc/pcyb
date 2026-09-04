@@ -1,0 +1,758 @@
+#!/usr/bin/env python3
+# ZYNTRASEC SECURITY - Advanced Vehicle RC Lookup (All Indian States)
+# Copyright © 2026 ZYNTRASEC Security. All Rights Reserved.
+
+import requests
+import json
+import os
+import sys
+import re
+import time
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+# ==================== CONFIGURATION ====================
+VERSION = "7.0.0 INDIA"
+AUTHOR = "ZYNTRASEC Security"
+COPYRIGHT = "© 2026 ZYNTRASEC Security. All Rights Reserved."
+YEAR = "2026"
+
+# 🔑 Your API Key
+RAPIDAPI_KEY = "1755c4d766mshb53aa76886edfdfp1f7f35jsn61537572c89f"
+
+# 🚗 Demo RC Numbers for Various Indian States
+DEMO_RCS = {
+    "GJ": "GJ05VC1234",
+    "MH": "MH12AB3456",
+    "KA": "KA01BC7890",
+    "TN": "TN07CD1234",
+    "DL": "DL02EF5678",
+    "UP": "UP14GH9012",
+    "WB": "WB06IJ3456",
+    "AP": "AP09KL1234",
+    "TG": "TG05MN5678",
+    "RJ": "RJ14OP9012",
+    "BI": "BR04QR3456",
+    "MP": "MP09ST7890",
+    "PB": "PB03UV1234",
+    "HR": "HR26WX5678"
+}
+
+# ==================== COLOR CODES ====================
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+# ==================== DEMO DATA (Indian States) ====================
+DEMO_DATA = {
+    # Gujarat
+    "GJ05VC1234": {
+        "owner_name": "RAJAN HACKERD",
+        "father_name": "RAMESH HACKERD",
+        "address": "123, Cyber Security Street, GIFT City, Gandhinagar, Gujarat 382355",
+        "city": "Gandhinagar",
+        "state": "Gujarat",
+        "country": "India",
+        "phone": "9876543210",
+        "email": "rajan@zyntrasec.com",
+        "rto": "GANDHINAGAR RTO",
+        "registration_no": "GJ05VC1234",
+        "registration_date": "15-Jan-2022",
+        "vehicle_class": "M-CYCLE/SCOOTER",
+        "maker": "HERO MOTOCORP LTD",
+        "model": "HERO SPLENDOR PLUS",
+        "fuel_type": "PETROL",
+        "fuel_norm": "BHARAT STAGE VI",
+        "engine_no": "HSPE12J3456789",
+        "chassis_no": "HSPE12J3456789012",
+        "fitness_upto": "14-Jan-2037",
+        "insurance_company": "BAJAJ ALLIANZ INSURANCE",
+        "insurance_policy_no": "BAJ-2025-123456",
+        "insurance_upto": "14-Jan-2028",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "14-Jul-2026",
+        "road_tax_upto": "14-Jan-2027",
+        "registration_status": "ACTIVE",
+        "color": "BLACK",
+        "seating_capacity": "2",
+        "cubic_capacity": "97.2 CC",
+        "manufactured_year": "2021",
+        "registered_state": "GUJARAT"
+    },
+    # Maharashtra
+    "MH12AB3456": {
+        "owner_name": "AMIT SHAH",
+        "father_name": "SURESH SHAH",
+        "address": "456, Marine Drive, Mumbai, Maharashtra 400001",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "phone": "9876543211",
+        "email": "amit@zyntrasec.com",
+        "rto": "MUMBAI RTO",
+        "registration_no": "MH12AB3456",
+        "registration_date": "10-Feb-2023",
+        "vehicle_class": "CAR",
+        "maker": "TATA MOTORS",
+        "model": "TATA NEXON",
+        "fuel_type": "DIESEL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "TATANX1234567",
+        "chassis_no": "TATANX1234567890",
+        "fitness_upto": "09-Feb-2038",
+        "insurance_company": "ICICI LOMBARD",
+        "insurance_policy_no": "ICICI-2026-789012",
+        "insurance_upto": "09-Feb-2029",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "09-Aug-2027",
+        "road_tax_upto": "09-Feb-2028",
+        "registration_status": "ACTIVE",
+        "color": "WHITE",
+        "seating_capacity": "5",
+        "cubic_capacity": "1497 CC",
+        "manufactured_year": "2023",
+        "registered_state": "MAHARASHTRA"
+    },
+    # Karnataka
+    "KA01BC7890": {
+        "owner_name": "RADHA KRISHNA",
+        "father_name": "NARAYAN KRISHNA",
+        "address": "789, MG Road, Bengaluru, Karnataka 560001",
+        "city": "Bengaluru",
+        "state": "Karnataka",
+        "country": "India",
+        "phone": "9876543212",
+        "email": "radha@zyntrasec.com",
+        "rto": "BENGALURU RTO",
+        "registration_no": "KA01BC7890",
+        "registration_date": "20-Mar-2022",
+        "vehicle_class": "CAR",
+        "maker": "HYUNDAI MOTORS",
+        "model": "HYUNDAI CRETA",
+        "fuel_type": "PETROL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "HYUCR1234567",
+        "chassis_no": "HYUCR1234567890",
+        "fitness_upto": "19-Mar-2037",
+        "insurance_company": "HDFC ERGO",
+        "insurance_policy_no": "HDFC-2025-345678",
+        "insurance_upto": "19-Mar-2028",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "19-Sep-2026",
+        "road_tax_upto": "19-Mar-2027",
+        "registration_status": "ACTIVE",
+        "color": "BLUE",
+        "seating_capacity": "5",
+        "cubic_capacity": "1497 CC",
+        "manufactured_year": "2022",
+        "registered_state": "KARNATAKA"
+    },
+    # Tamil Nadu
+    "TN07CD1234": {
+        "owner_name": "MURALI DHARAN",
+        "father_name": "RAGHAVAN DHARAN",
+        "address": "321, Marina Beach Road, Chennai, Tamil Nadu 600001",
+        "city": "Chennai",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "phone": "9876543213",
+        "email": "murali@zyntrasec.com",
+        "rto": "CHENNAI RTO",
+        "registration_no": "TN07CD1234",
+        "registration_date": "05-Apr-2021",
+        "vehicle_class": "SCOOTER",
+        "maker": "TVS MOTORS",
+        "model": "TVS NTORQ",
+        "fuel_type": "PETROL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "TVSNT1234567",
+        "chassis_no": "TVSNT1234567890",
+        "fitness_upto": "04-Apr-2036",
+        "insurance_company": "BAJAJ ALLIANZ",
+        "insurance_policy_no": "BAJ-2024-567890",
+        "insurance_upto": "04-Apr-2027",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "04-Oct-2026",
+        "road_tax_upto": "04-Apr-2027",
+        "registration_status": "ACTIVE",
+        "color": "RED",
+        "seating_capacity": "2",
+        "cubic_capacity": "125 CC",
+        "manufactured_year": "2021",
+        "registered_state": "TAMIL NADU"
+    },
+    # Delhi
+    "DL02EF5678": {
+        "owner_name": "VIKRAM SINGH",
+        "father_name": "RANJIT SINGH",
+        "address": "555, Connaught Place, New Delhi 110001",
+        "city": "New Delhi",
+        "state": "Delhi",
+        "country": "India",
+        "phone": "9876543214",
+        "email": "vikram@zyntrasec.com",
+        "rto": "DELHI RTO",
+        "registration_no": "DL02EF5678",
+        "registration_date": "12-May-2023",
+        "vehicle_class": "SUV",
+        "maker": "MAHINDRA",
+        "model": "MAHINDRA XUV700",
+        "fuel_type": "DIESEL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "MAHX71234567",
+        "chassis_no": "MAHX71234567890",
+        "fitness_upto": "11-May-2038",
+        "insurance_company": "SBI GENERAL",
+        "insurance_policy_no": "SBI-2026-901234",
+        "insurance_upto": "11-May-2029",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "11-Nov-2027",
+        "road_tax_upto": "11-May-2028",
+        "registration_status": "ACTIVE",
+        "color": "ORANGE",
+        "seating_capacity": "7",
+        "cubic_capacity": "2198 CC",
+        "manufactured_year": "2023",
+        "registered_state": "DELHI"
+    },
+    # Uttar Pradesh
+    "UP14GH9012": {
+        "owner_name": "ANJALI VERMA",
+        "father_name": "RAJESH VERMA",
+        "address": "789, Hazratganj, Lucknow, Uttar Pradesh 226001",
+        "city": "Lucknow",
+        "state": "Uttar Pradesh",
+        "country": "India",
+        "phone": "9876543215",
+        "email": "anjali@zyntrasec.com",
+        "rto": "LUCKNOW RTO",
+        "registration_no": "UP14GH9012",
+        "registration_date": "18-Jun-2022",
+        "vehicle_class": "SEDAN",
+        "maker": "HONDA CARS",
+        "model": "HONDA CITY",
+        "fuel_type": "PETROL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "HONCT1234567",
+        "chassis_no": "HONCT1234567890",
+        "fitness_upto": "17-Jun-2037",
+        "insurance_company": "RELIANCE GENERAL",
+        "insurance_policy_no": "REL-2025-123456",
+        "insurance_upto": "17-Jun-2028",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "17-Dec-2026",
+        "road_tax_upto": "17-Jun-2027",
+        "registration_status": "ACTIVE",
+        "color": "SILVER",
+        "seating_capacity": "5",
+        "cubic_capacity": "1498 CC",
+        "manufactured_year": "2022",
+        "registered_state": "UTTAR PRADESH"
+    },
+    # West Bengal
+    "WB06IJ3456": {
+        "owner_name": "SANDIP KUMAR",
+        "father_name": "RAJ KUMAR",
+        "address": "123, Park Street, Kolkata, West Bengal 700001",
+        "city": "Kolkata",
+        "state": "West Bengal",
+        "country": "India",
+        "phone": "9876543216",
+        "email": "sandip@zyntrasec.com",
+        "rto": "KOLKATA RTO",
+        "registration_no": "WB06IJ3456",
+        "registration_date": "22-Jul-2023",
+        "vehicle_class": "COMPACT SUV",
+        "maker": "KIA MOTORS",
+        "model": "KIA SONET",
+        "fuel_type": "DIESEL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "KIASN1234567",
+        "chassis_no": "KIASN1234567890",
+        "fitness_upto": "21-Jul-2038",
+        "insurance_company": "NATIONAL INSURANCE",
+        "insurance_policy_no": "NAT-2026-789012",
+        "insurance_upto": "21-Jul-2029",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "21-Jan-2028",
+        "road_tax_upto": "21-Jul-2028",
+        "registration_status": "ACTIVE",
+        "color": "BLACK",
+        "seating_capacity": "5",
+        "cubic_capacity": "1493 CC",
+        "manufactured_year": "2023",
+        "registered_state": "WEST BENGAL"
+    },
+    # Andhra Pradesh
+    "AP09KL1234": {
+        "owner_name": "SRIKANTH REDDY",
+        "father_name": "VENKAT REDDY",
+        "address": "456, Beach Road, Visakhapatnam, Andhra Pradesh 530001",
+        "city": "Visakhapatnam",
+        "state": "Andhra Pradesh",
+        "country": "India",
+        "phone": "9876543217",
+        "email": "srikanth@zyntrasec.com",
+        "rto": "VIZAG RTO",
+        "registration_no": "AP09KL1234",
+        "registration_date": "05-Aug-2022",
+        "vehicle_class": "SUV",
+        "maker": "TOYOTA",
+        "model": "TOYOTA INNOVA",
+        "fuel_type": "DIESEL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "TOYIN1234567",
+        "chassis_no": "TOYIN1234567890",
+        "fitness_upto": "04-Aug-2037",
+        "insurance_company": "BAJAJ ALLIANZ",
+        "insurance_policy_no": "BAJ-2025-234567",
+        "insurance_upto": "04-Aug-2028",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "04-Feb-2027",
+        "road_tax_upto": "04-Aug-2027",
+        "registration_status": "ACTIVE",
+        "color": "GREY",
+        "seating_capacity": "7",
+        "cubic_capacity": "2393 CC",
+        "manufactured_year": "2022",
+        "registered_state": "ANDHRA PRADESH"
+    },
+    # Telangana
+    "TG05MN5678": {
+        "owner_name": "RAJESH GOUD",
+        "father_name": "NARESH GOUD",
+        "address": "789, Jubilee Hills, Hyderabad, Telangana 500033",
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "phone": "9876543218",
+        "email": "rajesh@zyntrasec.com",
+        "rto": "HYDERABAD RTO",
+        "registration_no": "TG05MN5678",
+        "registration_date": "12-Sep-2021",
+        "vehicle_class": "SEDAN",
+        "maker": "HYUNDAI",
+        "model": "HYUNDAI VERNA",
+        "fuel_type": "PETROL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "HYVRN1234567",
+        "chassis_no": "HYVRN1234567890",
+        "fitness_upto": "11-Sep-2036",
+        "insurance_company": "ICICI LOMBARD",
+        "insurance_policy_no": "ICICI-2024-345678",
+        "insurance_upto": "11-Sep-2027",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "11-Mar-2027",
+        "road_tax_upto": "11-Sep-2027",
+        "registration_status": "ACTIVE",
+        "color": "BLACK",
+        "seating_capacity": "5",
+        "cubic_capacity": "1497 CC",
+        "manufactured_year": "2021",
+        "registered_state": "TELANGANA"
+    },
+    # Rajasthan
+    "RJ14OP9012": {
+        "owner_name": "PRIYANKA SHARMA",
+        "father_name": "RAMESH SHARMA",
+        "address": "321, MI Road, Jaipur, Rajasthan 302001",
+        "city": "Jaipur",
+        "state": "Rajasthan",
+        "country": "India",
+        "phone": "9876543219",
+        "email": "priyanka@zyntrasec.com",
+        "rto": "JAIPUR RTO",
+        "registration_no": "RJ14OP9012",
+        "registration_date": "25-Nov-2022",
+        "vehicle_class": "HATCHBACK",
+        "maker": "MARUTI SUZUKI",
+        "model": "MARUTI SWIFT",
+        "fuel_type": "PETROL",
+        "fuel_norm": "BS-VI",
+        "engine_no": "MSWFT1234567",
+        "chassis_no": "MSWFT1234567890",
+        "fitness_upto": "24-Nov-2037",
+        "insurance_company": "HDFC ERGO",
+        "insurance_policy_no": "HDFC-2025-456789",
+        "insurance_upto": "24-Nov-2028",
+        "owner_serial": "First Owner",
+        "puc_valid_upto": "24-May-2027",
+        "road_tax_upto": "24-Nov-2027",
+        "registration_status": "ACTIVE",
+        "color": "RED",
+        "seating_capacity": "5",
+        "cubic_capacity": "1197 CC",
+        "manufactured_year": "2022",
+        "registered_state": "RAJASTHAN"
+    }
+}
+
+# ==================== API CONFIGURATION ====================
+API = {
+    "name": "RTO Vehicle Information India API",
+    "url": "https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php",
+    "method": "GET",
+    "headers": {
+        'x-rapidapi-host': 'rto-vehicle-information-india-api.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY,
+        'Content-Type': 'application/json'
+    }
+}
+
+BACKUP_APIS = [
+    {
+        "name": "Vehicle Info Free API",
+        "url": "https://vehicleinfobyterabaap.vercel.app/lookup",
+        "method": "GET",
+        "params": {"rc": None}
+    },
+    {
+        "name": "RTO Search Free",
+        "url": "https://www.rtosearch.in/api/get_details.php",
+        "method": "GET",
+        "params": {"vehicle_no": None}
+    }
+]
+
+# ==================== UTILITIES ====================
+def clear_screen():
+    os.system("cls" if os.name == "nt" else "clear")
+
+def print_banner():
+    banner = f"""
+{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   ███████╗██╗   ██╗███╗   ██╗████████╗██████╗  █████╗     ║
+║   ╚══███╔╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██╔══██╗██╔══██╗    ║
+║     ███╔╝  ╚████╔╝ ██╔██╗ ██║   ██║   ██████╔╝███████║    ║
+║    ███╔╝    ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██╗██╔══██║    ║
+║   ███████╗   ██║   ██║ ╚████║   ██║   ██║  ██║██║  ██║    ║
+║   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝    ║
+║                                                              ║
+║            🔒 ZYNTRASEC SECURITY ADVANCED 🔒                ║
+║         🚗 Advanced RC Lookup Tool (All States)            ║
+║                                                              ║
+║   Version: {VERSION:<10}  Copyright {YEAR}                   ║
+║   {COPYRIGHT}                                                ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝{Colors.END}
+    """
+    print(banner)
+    print(f"{Colors.YELLOW}  ⚠️  DISCLAIMER: For Educational & Ethical Use Only{Colors.END}")
+    print("  " + "=" * 62 + "\n")
+
+def loading_animation():
+    """Loading Animation"""
+    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    for i in range(20):
+        sys.stdout.write(f"\r  {Colors.CYAN}🔍 Searching{Colors.END} {frames[i % len(frames)]} ")
+        sys.stdout.flush()
+        time.sleep(0.05)
+    print()
+
+def validate_indian_rc(rc: str) -> bool:
+    """Validate any Indian state RC (two-letter state code)"""
+    # List of all Indian state/UT codes
+    state_codes = [
+        "AP", "AR", "AS", "BR", "CG", "GA", "GJ", "HR", "HP", "JK", "JH",
+        "KA", "KL", "MP", "MH", "MN", "ML", "MZ", "NL", "OR", "PB", "RJ",
+        "SK", "TN", "TR", "UP", "WB", "AN", "CH", "DN", "DD", "DL", "LD",
+        "PY", "TS", "TG", "LA"
+    ]
+    # Regular expression: state code followed by digits, letters, digits
+    pattern = r'^(' + '|'.join(state_codes) + r')[-]?\d{1,2}[-]?[A-Z]{1,2}[-]?\d{4}$'
+    return re.match(pattern, rc) is not None
+
+def get_state_from_rc(rc: str) -> str:
+    """Extract state code from RC"""
+    # Remove hyphens and get first two characters
+    clean = re.sub(r'[-]', '', rc)
+    return clean[:2].upper()
+
+def get_demo_data(rc: str) -> Optional[Dict]:
+    """Get demo data (if RC matches)"""
+    return DEMO_DATA.get(rc)
+
+def fetch_from_rapidapi(rc: str) -> Dict:
+    """Fetch data from RapidAPI"""
+    try:
+        params = {"registration_no": rc}
+        response = requests.get(
+            API["url"],
+            params=params,
+            headers=API["headers"],
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"HTTP {response.status_code}"}
+
+    except requests.exceptions.Timeout:
+        return {"error": "Timeout"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Connection Error"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def fetch_from_backup(rc: str, api_config: Dict) -> Dict:
+    """Fetch data from backup API"""
+    try:
+        params = {}
+        if api_config.get("params"):
+            for key, value in api_config["params"].items():
+                params[key] = rc
+
+        response = requests.get(
+            api_config["url"],
+            params=params,
+            headers={},
+            timeout=8
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        return {"error": f"HTTP {response.status_code}"}
+
+    except requests.exceptions.Timeout:
+        return {"error": "Timeout"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def format_phone(phone: str) -> str:
+    """Format phone number"""
+    if not phone:
+        return "N/A"
+    phone = re.sub(r'[^\d+]', '', str(phone))
+    if len(phone) == 10:
+        return f"+91 {phone[:5]} {phone[5:]}"
+    elif len(phone) == 11 and phone.startswith('0'):
+        return f"+91 {phone[1:6]} {phone[6:]}"
+    return phone if phone else "N/A"
+
+def display_vehicle_info(data: Dict, rc: str, api_name: str, is_demo: bool = False):
+    """Display vehicle information"""
+    state = get_state_from_rc(rc)
+    print(f"\n{Colors.GREEN}{'='*62}{Colors.END}")
+    print(f"{Colors.CYAN}  🚗 VEHICLE INFORMATION - {rc}{Colors.END}")
+    print(f"{Colors.MAGENTA}  📍 State: {state}{Colors.END}")
+    if is_demo:
+        print(f"{Colors.YELLOW}  📌 [DEMO MODE] - Sample Data{Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR}{Colors.END}")
+    print(f"{Colors.GREEN}{'='*62}{Colors.END}")
+
+    if "error" in data:
+        print(f"{Colors.RED}  ❌ Error: {data['error']}{Colors.END}")
+        return
+
+    # Remove unwanted fields
+    unwanted = ['_api_time', '_fetched_at', '_status', 'copyright', 'source', 'maker']
+    for key in unwanted:
+        data.pop(key, None)
+
+    # Field mapping
+    field_mapping = {
+        'owner_name': '👤 Owner Name',
+        'father_name': '👨‍👦 Father Name',
+        'address': '📍 Address',
+        'city': '🏙️ City',
+        'state': '📍 State',
+        'country': '🌍 Country',
+        'phone': '📞 Phone Number',
+        'mobile': '📞 Phone Number',
+        'email': '📧 Email',
+        'rto': '🏢 RTO Office',
+        'registered_rto': '🏢 RTO Office',
+        'registration_no': '📋 Registration No',
+        'registration_date': '📅 Registration Date',
+        'vehicle_class': '🚗 Vehicle Class',
+        'maker_model': '🏭 Maker/Model',
+        'maker': '🏭 Maker',
+        'model': '🔧 Model',
+        'fuel_type': '⛽ Fuel Type',
+        'fuel_norm': '📊 Fuel Norms',
+        'engine_no': '🔢 Engine Number',
+        'chassis_no': '🔢 Chassis Number',
+        'fitness_upto': '✅ Fitness Upto',
+        'insurance_company': '🛡️ Insurance Company',
+        'insurance_policy_no': '📄 Insurance Policy',
+        'insurance_upto': '📆 Insurance Upto',
+        'owner_serial': '👥 Owner Serial',
+        'puc_valid_upto': '📋 PUC Upto',
+        'road_tax_upto': '💰 Road Tax Upto',
+        'registration_status': '📊 Registration Status',
+        'color': '🎨 Color',
+        'seating_capacity': '💺 Seating Capacity',
+        'cubic_capacity': '🔧 Engine CC',
+        'manufactured_year': '🏗️ Manufactured Year',
+        'registered_state': '📍 Registered State'
+    }
+
+    # Clean phone if exists
+    if 'phone' in data:
+        data['phone'] = format_phone(data['phone'])
+    if 'mobile' in data:
+        data['mobile'] = format_phone(data['mobile'])
+
+    # Display fields
+    displayed = False
+    for key, value in data.items():
+        if key.startswith('_'):
+            continue
+        if key in unwanted:
+            continue
+        label = field_mapping.get(key, key.replace('_', ' ').title())
+        display_value = value if value else 'N/A'
+        print(f"  {Colors.YELLOW}{label:<30}{Colors.END} : {Colors.WHITE}{display_value}{Colors.END}")
+        displayed = True
+
+    if not displayed:
+        print(f"{Colors.RED}  No vehicle data found for this RC number{Colors.END}")
+        print(f"{Colors.DIM}  💡 Raw response: {json.dumps(data, indent=2)[:300]}...{Colors.END}")
+
+    print(f"{Colors.GREEN}{'='*62}{Colors.END}")
+    print(f"{Colors.CYAN}  📡 Data from: {api_name}{Colors.END}")
+    print(f"{Colors.CYAN}  🏷️  State: {state}{Colors.END}")
+    if is_demo:
+        print(f"{Colors.YELLOW}  📌 Demo data for {rc} (Example){Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR} | All Rights Reserved{Colors.END}")
+
+def save_results(rc: str, data: Dict, is_demo: bool = False) -> str:
+    """Save results to file"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    prefix = "DEMO_" if is_demo else ""
+    filename = f"ZYNTRASEC_{prefix}{rc}_{timestamp}.json"
+
+    data['_metadata'] = {
+        'tool': 'ZYNTRASEC Security Advanced',
+        'version': VERSION,
+        'year': YEAR,
+        'timestamp': datetime.now().isoformat(),
+        'copyright': COPYRIGHT,
+        'rc_checked': rc,
+        'is_demo': is_demo,
+        'generated_by': 'ZYNTRASEC Security'
+    }
+
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+    print(f"\n  💾 Results saved to: {filename}")
+    return filename
+
+# ==================== MAIN FUNCTION ====================
+def main():
+    try:
+        clear_screen()
+        print_banner()
+
+        print(f"{Colors.CYAN}  🔍 Enter Indian RC Number (Any State){Colors.END}")
+        print(f"{Colors.YELLOW}  📝 Format: GJ-05-VC-1234 or GJ05VC1234{Colors.END}")
+        print(f"{Colors.DIM}  💡 Demo RCs:{Colors.END}")
+        for state, rc in DEMO_RCS.items():
+            print(f"    {Colors.DIM}• {state}: {rc}{Colors.END}")
+        print(f"{Colors.MAGENTA}  🔒 Secured by ZYNTRASEC SECURITY | Copyright {YEAR}{Colors.END}")
+        print("  (Press Ctrl+C to exit)\n")
+
+        while True:
+            try:
+                rc = input(f"{Colors.GREEN}  🚗 RC Number: {Colors.END}").strip().upper()
+
+                if not rc:
+                    print(f"{Colors.RED}  ❌ Please enter a valid RC number\n{Colors.END}")
+                    continue
+
+                # Check if it's a demo RC
+                is_demo = False
+                demo_data = get_demo_data(rc)
+                if demo_data:
+                    print(f"{Colors.YELLOW}  📌 Demo data found for {rc}{Colors.END}")
+                    is_demo = True
+                    data = demo_data
+                    used_api = "ZYNTRASEC Demo Database"
+                    display_vehicle_info(data, rc, used_api, is_demo)
+                    save_results(rc, data, is_demo)
+                    print(f"\n  {Colors.GREEN}✅ Demo data loaded successfully!{Colors.END}")
+                else:
+                    if not validate_indian_rc(rc):
+                        print(f"{Colors.YELLOW}  ⚠️ Warning: Not a valid Indian RC format{Colors.END}")
+                        confirm = input("  Continue anyway? (y/n): ").strip().lower()
+                        if confirm != 'y':
+                            continue
+
+                    print(f"\n  🔄 Searching for {rc}...")
+                    print(f"  🔒 ZYNTRASEC SECURITY {YEAR} - Scan in progress...\n")
+                    loading_animation()
+
+                    data = None
+                    used_api = None
+
+                    # Try RapidAPI
+                    print(f"  ⏳ Trying RapidAPI (Primary)...")
+                    result = fetch_from_rapidapi(rc)
+
+                    if result and "error" not in result and len(result) > 0:
+                        data = result
+                        used_api = "RTO Vehicle Information India API (RapidAPI)"
+                        print(f"  {Colors.GREEN}✅ Success!{Colors.END}")
+                    else:
+                        error = result.get("error", "No data") if result else "No response"
+                        print(f"  {Colors.RED}❌ {error}{Colors.END}")
+                        print(f"  ⏳ Trying Backup APIs...")
+
+                        for api in BACKUP_APIS:
+                            print(f"  ⏳ Trying {api['name']}...")
+                            result = fetch_from_backup(rc, api)
+
+                            if result and "error" not in result and len(result) > 0:
+                                data = result
+                                used_api = api['name']
+                                print(f"  {Colors.GREEN}✅ Success!{Colors.END}")
+                                break
+                            else:
+                                error = result.get("error", "No data") if result else "No response"
+                                print(f"  {Colors.RED}❌ {error}{Colors.END}")
+                            time.sleep(0.3)
+
+                    if data:
+                        display_vehicle_info(data, rc, used_api, is_demo)
+                        save_results(rc, data, is_demo)
+                        print(f"\n  {Colors.GREEN}✅ Scan completed successfully!{Colors.END}")
+                        print(f"  {Colors.CYAN}📡 Data from: {used_api}{Colors.END}")
+                    else:
+                        print(f"\n  {Colors.RED}❌ All APIs failed!{Colors.END}")
+                        print(f"  {Colors.YELLOW}💡 Suggestions:{Colors.END}")
+                        print("    1. Check internet connection")
+                        print("    2. RC number might be incorrect")
+                        print("    3. API Key might be expired")
+                        print("    4. Try one of the demo RCs listed above")
+                        print("    5. Subscribe to API on RapidAPI")
+
+                print(f"\n{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright {YEAR}{Colors.END}")
+                print("\n" + "-" * 62)
+                print("  Press Enter to continue, Ctrl+C to exit\n")
+                input()
+
+            except KeyboardInterrupt:
+                print(f"\n\n  👋 Exiting ZYNTRASEC Security...")
+                print(f"  {COPYRIGHT}")
+                sys.exit(0)
+            except Exception as e:
+                print(f"  {Colors.RED}❌ Unexpected error: {e}{Colors.END}")
+                continue
+
+    except KeyboardInterrupt:
+        print(f"\n\n  👋 Exiting ZYNTRASEC Security...")
+        print(f"  {COPYRIGHT}")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()
