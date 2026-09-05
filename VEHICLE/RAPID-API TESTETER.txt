@@ -1,0 +1,762 @@
+#!/usr/bin/env python3
+# ZYNTRASEC SECURITY - API Quality Analyzer
+# Automatically detects which API gives most accurate & detailed data
+# Copyright © 2026 ZYNTRASEC Security. All Rights Reserved.
+
+import os
+import sys
+import subprocess
+import importlib
+import json
+import time
+import re
+from datetime import datetime
+from collections import defaultdict
+
+# ===================================================================
+# 📦 AUTO-INSTALL DEPENDENCIES
+# ===================================================================
+
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+        print(f"✅ Installed: {package}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install {package}: {e}")
+        return False
+
+def ensure_requirements():
+    required = ['requests']
+    for pkg in required:
+        try:
+            importlib.import_module(pkg)
+        except ImportError:
+            print(f"⚠️ {pkg} not found. Installing...")
+            install_package(pkg)
+
+ensure_requirements()
+
+import requests
+
+# ===================================================================
+# 🎨 COLORS
+# ===================================================================
+
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+# ===================================================================
+# 🔑 CONFIGURATION
+# ===================================================================
+
+RAPIDAPI_KEY = "1bd3c6e057msh2516cfa56a8bb85p1d4a70jsn0f95190ddb2c"
+
+# ===================================================================
+# 🌐 ALL 25 APIs
+# ===================================================================
+
+ALL_APIS = [
+    # 🥇 TOP PRIORITY - Official & Most Reliable
+    {
+        "priority": 1,
+        "name": "API #24 - Vahan Official (Government)",
+        "method": "GET",
+        "url": "https://vahan-vehicle-details-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vahan-vehicle-details-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 2,
+        "name": "API #16 - RC Verification",
+        "method": "POST",
+        "url": "https://vehicle-rc-verification-rto.p.rapidapi.com/rc-full",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-verification-rto.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"id_number": None}
+    },
+    {
+        "priority": 3,
+        "name": "API #8 - rc_v2 (India API)",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 4,
+        "name": "API #22 - Advance Verification",
+        "method": "POST",
+        "url": "https://vehicle-rc-verification-advance.p.rapidapi.com/Getrcfulldetails",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-verification-advance.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"rcnumber": None}
+    },
+    {
+        "priority": 5,
+        "name": "API #9 - rc_v2 (India 2)",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india2.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india2.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 6,
+        "name": "API #11 - rc_v2 (Mega)",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 7,
+        "name": "API #12 - Info API",
+        "method": "GET",
+        "url": "https://rto-vehicle-info-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-info-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 8,
+        "name": "API #13 - Details6",
+        "method": "GET",
+        "url": "https://rto-vehicle-details6.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details6.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 9,
+        "name": "API #14 - Indian Mega",
+        "method": "GET",
+        "url": "https://indian-rto-vehicle-details-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "indian-rto-vehicle-details-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 10,
+        "name": "API #17 - Details API",
+        "method": "GET",
+        "url": "https://rto-vehicle-details-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 11,
+        "name": "API #19 - Details API1",
+        "method": "GET",
+        "url": "https://rto-vehicle-details-api1.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details-api1.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 12,
+        "name": "API #20 - RC Details Mega",
+        "method": "GET",
+        "url": "https://vehicle-rc-details-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-details-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 13,
+        "name": "API #21 - RC Information Mega",
+        "method": "GET",
+        "url": "https://vehicle-rc-information-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-information-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 14,
+        "name": "API #23 - Mega1",
+        "method": "GET",
+        "url": "https://vehicle-rc-information-mega1.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-information-mega1.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 15,
+        "name": "API #1 - Vehicle Details",
+        "method": "POST",
+        "url": "https://rto-vehicle-details.p.rapidapi.com/api4",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"reg": None}
+    },
+    {
+        "priority": 16,
+        "name": "API #10 - Pro Version",
+        "method": "POST",
+        "url": "https://rto-vehicle-details-pro.p.rapidapi.com/api",
+        "headers": {
+            "Content-Type": "application/json",
+            "X-User-Email": "user@gmail.com",
+            "x-rapidapi-host": "rto-vehicle-details-pro.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"reg": None}
+    },
+    {
+        "priority": 17,
+        "name": "API #2 - Vehicle Challan",
+        "method": "POST",
+        "url": "https://rto-vehicle-information-india.p.rapidapi.com/getVehicleChallan",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {
+            "vehicle_no": None,
+            "consent": "Y",
+            "consent_text": "I hereby give my consent for Eccentric Labs API to fetch my information"
+        }
+    },
+    {
+        "priority": 18,
+        "name": "API #3 - Challan Info",
+        "method": "POST",
+        "url": "https://rto-challan-information-india.p.rapidapi.com/fetch_challan_info",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-challan-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"reg_no": None}
+    },
+    {
+        "priority": 19,
+        "name": "API #7 - RC Search",
+        "method": "GET",
+        "url": "https://rto-vehicle-details-rc-puc-insurance-mparivahan.p.rapidapi.com/api/rc-vehicle/search-data",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details-rc-puc-insurance-mparivahan.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"vehicle_no": None}
+    },
+    {
+        "priority": 20,
+        "name": "API #18 - Address API",
+        "method": "GET",
+        "url": "https://rto-vehicle-details5.p.rapidapi.com/address",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details5.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration": None}
+    },
+    {
+        "priority": 21,
+        "name": "API #25 - Address API (Duplicate)",
+        "method": "GET",
+        "url": "https://rto-vehicle-details5.p.rapidapi.com/address",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details5.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration": None}
+    },
+    {
+        "priority": 22,
+        "name": "API #15 - Owner Details",
+        "method": "GET",
+        "url": "https://vehicle-rc-owner-details-api-india-rto-data.p.rapidapi.com/api/rapidapi/rc-details2",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-account-id": "{{accountId}}",
+            "x-api-key": "{{apiKey}}",
+            "x-rapidapi-host": "vehicle-rc-owner-details-api-india-rto-data.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {
+            "vehicleNumber": None,
+            "warning": "I am ready to take risks and continue."
+        }
+    },
+    {
+        "priority": 23,
+        "name": "API #4 - Challan API (Form)",
+        "method": "POST",
+        "url": "https://rto-challan-api.p.rapidapi.com/bus_api/public/api/v1/vaahan/searchChallanDetails",
+        "headers": {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "x-rapidapi-host": "rto-challan-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registrationNo": None},
+        "is_form": True
+    },
+    {
+        "priority": 24,
+        "name": "Free API - Vehicle Info",
+        "method": "GET",
+        "url": "https://vehicleinfobyterabaap.vercel.app/lookup",
+        "headers": {},
+        "params_mapping": {"rc": None}
+    },
+    {
+        "priority": 25,
+        "name": "Free API - RTO Search",
+        "method": "GET",
+        "url": "https://www.rtosearch.in/api/get_details.php",
+        "headers": {},
+        "params_mapping": {"vehicle_no": None}
+    }
+]
+
+# ===================================================================
+# 📊 API QUALITY ANALYZER
+# ===================================================================
+
+class APIQualityAnalyzer:
+    def __init__(self):
+        self.results = []
+        self.best_api = None
+        self.best_score = -1
+        self.vehicle_number = None
+    
+    def fetch_from_api(self, rc: str, api_config: dict) -> dict:
+        """Fetch data from a single API."""
+        try:
+            params = {}
+            data = None
+            json_data = None
+            
+            if api_config.get("params_mapping"):
+                for param_key, param_value in api_config["params_mapping"].items():
+                    if param_value is None:
+                        params[param_key] = rc
+                    else:
+                        params[param_key] = param_value
+            
+            if api_config.get("is_form"):
+                data = params
+                params = {}
+            
+            if api_config["method"] == "POST" and not api_config.get("is_form"):
+                json_data = params
+                params = {}
+            
+            if api_config["method"] == "GET":
+                response = requests.get(
+                    api_config["url"],
+                    params=params,
+                    headers=api_config.get("headers", {}),
+                    timeout=15
+                )
+            elif api_config["method"] == "POST":
+                if api_config.get("is_form"):
+                    response = requests.post(
+                        api_config["url"],
+                        data=data,
+                        headers=api_config.get("headers", {}),
+                        timeout=15
+                    )
+                else:
+                    response = requests.post(
+                        api_config["url"],
+                        json=json_data,
+                        headers=api_config.get("headers", {}),
+                        timeout=15
+                    )
+            else:
+                return {"error": f"Unsupported method: {api_config['method']}"}
+            
+            if response.status_code == 200:
+                try:
+                    return response.json()
+                except:
+                    return {"error": "Invalid JSON response"}
+            return {"error": f"HTTP {response.status_code}"}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def analyze_data_quality(self, data: dict) -> dict:
+        """Analyze the quality of API response data."""
+        if not data or "error" in data:
+            return {
+                "score": 0,
+                "fields": 0,
+                "has_owner": False,
+                "has_address": False,
+                "has_vehicle_details": False,
+                "has_registration": False,
+                "field_names": []
+            }
+        
+        fields = []
+        
+        # Flatten the data
+        flat_data = self.flatten_dict(data)
+        
+        # Important fields to check
+        important_fields = {
+            "owner_name": ["owner_name", "owner", "name", "owner_name"],
+            "address": ["address", "address_line", "street"],
+            "registration_no": ["registration_no", "registration_number", "reg_no", "vehicle_no", "rc_number"],
+            "vehicle_class": ["vehicle_class", "class", "vehicle_type"],
+            "maker": ["maker", "manufacturer", "make"],
+            "model": ["model", "vehicle_model"],
+            "fuel_type": ["fuel_type", "fuel", "fuel_type_name"],
+            "engine_no": ["engine_no", "engine_number"],
+            "chassis_no": ["chassis_no", "chassis_number"],
+            "registration_date": ["registration_date", "reg_date", "date"],
+            "fitness_upto": ["fitness_upto", "fitness_date"],
+            "insurance_upto": ["insurance_upto", "insurance_date"],
+            "puc_valid_upto": ["puc_valid_upto", "puc_date"],
+            "color": ["color", "vehicle_color"],
+            "state": ["state", "state_name", "registered_state"]
+        }
+        
+        # Score calculation
+        score = 0
+        has_owner = False
+        has_address = False
+        has_vehicle_details = False
+        has_registration = False
+        
+        # Check each important field
+        for category, keywords in important_fields.items():
+            found = False
+            for key in flat_data:
+                for keyword in keywords:
+                    if keyword.lower() in key.lower():
+                        found = True
+                        fields.append(key)
+                        break
+                if found:
+                    break
+            
+            if found:
+                if category == "owner_name":
+                    has_owner = True
+                    score += 15
+                elif category == "address":
+                    has_address = True
+                    score += 10
+                elif category == "registration_no":
+                    has_registration = True
+                    score += 10
+                elif category == "vehicle_class":
+                    has_vehicle_details = True
+                    score += 8
+                elif category in ["maker", "model"]:
+                    has_vehicle_details = True
+                    score += 5
+                elif category in ["fuel_type", "engine_no", "chassis_no"]:
+                    has_vehicle_details = True
+                    score += 4
+                elif category in ["registration_date", "fitness_upto", "insurance_upto", "puc_valid_upto"]:
+                    score += 3
+                elif category in ["color", "state"]:
+                    score += 2
+        
+        # Additional score for total fields
+        total_fields = len(flat_data)
+        score += min(total_fields * 0.5, 20)  # Max 20 points for field count
+        
+        # Bonus for official API (Vahan)
+        # This will be added outside
+        
+        return {
+            "score": score,
+            "fields": total_fields,
+            "has_owner": has_owner,
+            "has_address": has_address,
+            "has_vehicle_details": has_vehicle_details,
+            "has_registration": has_registration,
+            "field_names": list(flat_data.keys())[:20]  # Top 20 fields
+        }
+    
+    def flatten_dict(self, obj: dict, parent_key: str = '', sep: str = '_') -> dict:
+        """Flatten nested dictionary."""
+        items = []
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                if isinstance(v, (dict, list)):
+                    items.extend(self.flatten_dict(v, new_key, sep=sep).items())
+                else:
+                    items.append((new_key, v))
+        elif isinstance(obj, list):
+            for i, v in enumerate(obj):
+                new_key = f"{parent_key}{sep}{i}" if parent_key else str(i)
+                if isinstance(v, (dict, list)):
+                    items.extend(self.flatten_dict(v, new_key, sep=sep).items())
+                else:
+                    items.append((new_key, v))
+        return dict(items)
+    
+    def analyze_all_apis(self, rc: str = "MH02FB2727"):
+        """Analyze all APIs for quality."""
+        print(f"\n{Colors.CYAN}  🔍 Analyzing all 25 APIs for data quality...{Colors.END}")
+        print(f"  {Colors.YELLOW}  Vehicle: {rc}{Colors.END}")
+        print(f"  {'─'*70}\n")
+        
+        self.vehicle_number = rc
+        results = []
+        
+        for idx, api_config in enumerate(ALL_APIS, 1):
+            api_name = api_config["name"]
+            priority = api_config.get("priority", idx)
+            
+            print(f"  ⏳ [{idx}/{len(ALL_APIS)}] Analyzing: {api_name[:50]}...", end="")
+            sys.stdout.flush()
+            
+            # Fetch data
+            data = self.fetch_from_api(rc, api_config)
+            
+            # Analyze quality
+            quality = self.analyze_data_quality(data)
+            
+            # Add bonus for official API
+            if "Vahan" in api_name or "Official" in api_name:
+                quality["score"] += 20
+            
+            # Add priority bonus
+            if priority <= 5:
+                quality["score"] += 10
+            
+            result = {
+                "priority": priority,
+                "name": api_name,
+                "status": "Success" if "error" not in data else "Failed",
+                "score": quality["score"],
+                "fields": quality["fields"],
+                "has_owner": quality["has_owner"],
+                "has_address": quality["has_address"],
+                "has_vehicle_details": quality["has_vehicle_details"],
+                "has_registration": quality["has_registration"],
+                "field_names": quality["field_names"],
+                "data": data if "error" not in data else None
+            }
+            
+            results.append(result)
+            
+            # Print status
+            if "error" in data:
+                print(f" {Colors.RED}❌ Failed{Colors.END}")
+            else:
+                print(f" {Colors.GREEN}✅ Score: {quality['score']}{Colors.END}")
+        
+        self.results = results
+        
+        # Find best API
+        best = max(results, key=lambda x: x["score"] if x["status"] == "Success" else 0)
+        self.best_api = best
+        self.best_score = best["score"]
+        
+        return results
+    
+    def print_results(self):
+        """Print quality analysis results."""
+        if not self.results:
+            print(f"{Colors.RED}  ❌ No results to display.{Colors.END}")
+            return
+        
+        print(f"\n{Colors.CYAN}  📊 API QUALITY ANALYSIS RESULTS{Colors.END}")
+        print(f"  {'='*70}")
+        
+        # Sort by score (highest first)
+        sorted_results = sorted(
+            [r for r in self.results if r["status"] == "Success"],
+            key=lambda x: x["score"],
+            reverse=True
+        )
+        
+        print(f"\n  {Colors.YELLOW}  Rank  Priority  Score  Status    Name{Colors.END}")
+        print(f"  {'─'*70}")
+        
+        for rank, result in enumerate(sorted_results, 1):
+            priority = result["priority"]
+            score = result["score"]
+            status = result["status"]
+            name = result["name"]
+            
+            # Determine color based on score
+            if score >= 80:
+                color = Colors.GREEN
+                emoji = "🏆"
+            elif score >= 60:
+                color = Colors.CYAN
+                emoji = "🥇"
+            elif score >= 40:
+                color = Colors.YELLOW
+                emoji = "🥈"
+            else:
+                color = Colors.WHITE
+                emoji = "🥉"
+            
+            print(f"  {color}{rank:<4}   {priority:<8}  {score:<5}   {status:<7}   {emoji} {name[:50]}{Colors.END}")
+        
+        print(f"  {'─'*70}")
+        
+        # Best API summary
+        if self.best_api and self.best_api["status"] == "Success":
+            print(f"\n{Colors.GREEN}  🏆 BEST API DETECTED:{Colors.END}")
+            print(f"  {'─'*70}")
+            print(f"  {Colors.GREEN}  Name: {self.best_api['name']}{Colors.END}")
+            print(f"  {Colors.CYAN}  Score: {self.best_api['score']}{Colors.END}")
+            print(f"  {Colors.YELLOW}  Fields: {self.best_api['fields']}{Colors.END}")
+            print(f"  {Colors.MAGENTA}  Has Owner: {'✅' if self.best_api['has_owner'] else '❌'}{Colors.END}")
+            print(f"  {Colors.MAGENTA}  Has Address: {'✅' if self.best_api['has_address'] else '❌'}{Colors.END}")
+            print(f"  {Colors.MAGENTA}  Has Vehicle Details: {'✅' if self.best_api['has_vehicle_details'] else '❌'}{Colors.END}")
+            print(f"  {Colors.MAGENTA}  Has Registration: {'✅' if self.best_api['has_registration'] else '❌'}{Colors.END}")
+            print(f"  {'─'*70}")
+            
+            # Show sample data
+            if self.best_api["data"]:
+                print(f"\n{Colors.CYAN}  📋 Sample Data from Best API:{Colors.END}")
+                flat_data = self.flatten_dict(self.best_api["data"])
+                count = 0
+                for key, value in list(flat_data.items())[:10]:
+                    count += 1
+                    print(f"  {Colors.DIM}  {count}. {key}: {value}{Colors.END}")
+        
+        # Failed APIs
+        failed = [r for r in self.results if r["status"] == "Failed"]
+        if failed:
+            print(f"\n{Colors.RED}  ❌ Failed APIs ({len(failed)}):{Colors.END}")
+            for r in failed:
+                print(f"  {Colors.DIM}  - {r['name']}{Colors.END}")
+    
+    def save_results(self, filename: str = None):
+        """Save analysis results to JSON file."""
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"api_quality_analysis_{self.vehicle_number}_{timestamp}.json"
+        
+        data = {
+            "metadata": {
+                "vehicle": self.vehicle_number,
+                "total_apis": len(self.results),
+                "timestamp": datetime.now().isoformat(),
+                "best_api": self.best_api["name"] if self.best_api else None,
+                "best_score": self.best_score
+            },
+            "results": self.results,
+            "ranking": sorted(
+                [r for r in self.results if r["status"] == "Success"],
+                key=lambda x: x["score"],
+                reverse=True
+            )
+        }
+        
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n  💾 Results saved to: {filename}")
+        return filename
+
+# ===================================================================
+# 🚀 MAIN FUNCTION
+# ===================================================================
+
+def main():
+    # Clear screen
+    os.system("cls" if os.name == "nt" else "clear")
+    
+    # Show header
+    print(f"""
+{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   █████╗ ██████╗ ██╗     ██╗   ██╗██████╗  █████╗          ║
+║  ██╔══██╗██╔══██╗██║     ██║   ██║╚════██╗██╔══██╗         ║
+║  ███████║██████╔╝██║     ██║   ██║ █████╔╝███████║         ║
+║  ██╔══██║██╔══██╗██║     ██║   ██║██╔═══╝ ██╔══██║         ║
+║  ██║  ██║██║  ██║███████╗╚██████╔╝███████╗██║  ██║         ║
+║  ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝         ║
+║                                                              ║
+║     🔍 API QUALITY ANALYZER                                  ║
+║     📊 Find which API gives most accurate & detailed data   ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝{Colors.END}
+    """)
+    
+    # Get vehicle number
+    print(f"{Colors.CYAN}  🔍 Enter Indian RC Number for analysis{Colors.END}")
+    print(f"{Colors.YELLOW}  📝 Example: MH02FB2727, GJ05VC1234{Colors.END}")
+    print(f"{Colors.DIM}  💡 Press Enter to use default (MH02FB2727){Colors.END}\n")
+    
+    rc = input(f"{Colors.GREEN}  🚗 RC Number: {Colors.END}").strip().upper()
+    if not rc:
+        rc = "MH02FB2727"
+        print(f"  {Colors.DIM}  Using default: {rc}{Colors.END}")
+    
+    # Run analysis
+    analyzer = APIQualityAnalyzer()
+    analyzer.analyze_all_apis(rc)
+    analyzer.print_results()
+    analyzer.save_results()
+    
+    print(f"\n{Colors.GREEN}  ✅ Analysis complete!{Colors.END}")
+
+if __name__ == "__main__":
+    main()

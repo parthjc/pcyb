@@ -1,0 +1,132 @@
+import asyncio
+from playwright.async_api import async_playwright
+
+# ================== CONFIGURATION ==================
+EMAIL = "ravinar1996@outlook.com"
+PASSWORD = "Admin@123"
+SEARCH_TERM = "rto"
+# ==================================================
+
+async def main():
+    async with async_playwright() as p:
+        # Persistent context: Login cookies save rahese
+        user_data_dir = "./user_data"
+        context = await p.chromium.launch_persistent_context(user_data_dir, headless=False)
+        page = context.pages[0] if context.pages else await context.new_page()
+        page.set_default_timeout(30000)
+
+        # --- STEP 1: LOGIN ---
+        print("Opening login page...")
+        await page.goto("https://rapidapi.com/auth/login", wait_until="domcontentloaded")
+        await page.wait_for_timeout(8000)
+
+        try:
+            accept_cookies = page.locator("button:has-text('Accept All')")
+            if await accept_cookies.is_visible():
+                await accept_cookies.click()
+                await page.wait_for_timeout(1000)
+                print("✅ Cookie banner accepted.")
+        except:
+            pass
+
+        if "auth/login" in page.url:
+            print("Logging in...")
+            try:
+                await page.locator("#email").wait_for(state="visible", timeout=30000)
+                await page.locator("#email").fill(EMAIL)
+                await page.locator("#password").fill(PASSWORD)
+                await page.locator("button[type='submit']").click()
+                await page.wait_for_timeout(10000)
+                print("✅ Login successful!")
+            except Exception as e:
+                print(f"⚠️ Login issue: {e}")
+        else:
+            print("✅ Already logged in from previous session!")
+
+        # --- STEP 2: SEARCH ---
+        print(f"Searching for '{SEARCH_TERM}'...")
+        await page.goto("https://rapidapi.com/search", wait_until="domcontentloaded")
+        await page.wait_for_timeout(8000)
+
+        try:
+            search_bar = page.locator("input[placeholder*='Search' i]").first
+            await search_bar.wait_for(state="visible", timeout=15000)
+            await search_bar.click()
+            await page.keyboard.type(SEARCH_TERM, delay=100)
+            await page.keyboard.press("Enter")
+            print(f"✅ Searched for '{SEARCH_TERM}'!")
+            await page.wait_for_timeout(8000)
+        except Exception as e:
+            print(f"❌ Search bar not found. Error: {e}")
+
+        # --- STEP 3: CLICK API RESULT ---
+        print("Clicking the first API result...")
+        try:
+            api_link = page.locator(f"a:has-text('{SEARCH_TERM.upper()}')").first
+            await api_link.wait_for(state="visible", timeout=15000)
+            await api_link.click()
+            print("✅ API page opened!")
+        except Exception as e:
+            print(f"❌ Could not find API link. Error: {e}")
+            try:
+                fallback_link = page.locator("main a").first
+                await fallback_link.click()
+                print("✅ Fallback: Clicked first link.")
+            except:
+                print("❌ Fallback failed.")
+
+        # API page load thava mate 8 second wait
+        await page.wait_for_timeout(8000)
+
+        # --- STEP 4: CLICK "Subscribe to Run" BUTTON (The Fix) ---
+        print("Looking for 'Subscribe to Run' button...")
+        try:
+            # Ahiya exact te button click karvano che
+            subscribe_run_btn = page.locator("button:has-text('Subscribe to Run')").first
+            await subscribe_run_btn.wait_for(state="visible", timeout=15000)
+            await subscribe_run_btn.click()
+            print("✅ 'Subscribe to Run' clicked!")
+            
+            # Pricing page load thava mate wait karo (pachi Basic plan no button aavse)
+            await page.wait_for_timeout(5000)
+
+        except Exception as e:
+            print(f"❌ Could not find 'Subscribe to Run' button. Error: {e}")
+
+        # --- STEP 5: CLICK "Request Access" (Basic Plan) ---
+        print("Looking for Basic plan button...")
+        try:
+            # Pricing page par "Request Access" button (Basic $0.00)
+            basic_button = page.locator("button:has-text('Request Access')").first
+            await basic_button.wait_for(state="visible", timeout=20000)
+            await basic_button.click()
+            print("✅ Basic plan 'Request Access' clicked!")
+            
+            # Subscription popup handle karo
+            await page.wait_for_timeout(5000)
+            
+            # Confirm button click karo
+            confirm_button = page.locator("button:has-text('Confirm'), button:has-text('Subscribe'), button:has-text('Ok')").first
+            if await confirm_button.is_visible():
+                await confirm_button.click()
+                print("🎉 BASIC PLAN SUBSCRIPTION CONFIRMED! (Free Plan)")
+                
+        except Exception as e:
+            print(f"❌ Could not find 'Request Access' button. Error: {e}")
+            # Fallback: "Choose This Plan" (Basic)
+            try:
+                plan_button = page.locator("button:has-text('Choose This Plan')").first
+                await plan_button.click()
+                print("✅ Clicked 'Choose This Plan' (Basic)")
+            except:
+                print("❌ No plan button found.")
+
+        # --- STEP 6: BROWSER OPEN RAKHO (60 seconds) ---
+        print("✅ Script finished! Keeping browser open for 60 seconds to verify...")
+        await page.wait_for_timeout(60000)
+
+        await context.close()
+        print("Browser closed.")
+
+if __name__ == "__main__":
+    asyncio.run(main())

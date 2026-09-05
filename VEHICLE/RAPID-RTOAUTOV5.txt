@@ -1,0 +1,529 @@
+#!/usr/bin/env python3
+import os
+import sys
+import subprocess
+import importlib
+import asyncio
+import json
+from playwright.async_api import async_playwright
+
+# ===================================================================
+# 📦 AUTO-INSTALL DEPENDENCIES
+# ===================================================================
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+        print(f"✅ Installed: {package}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install {package}: {e}")
+        return False
+
+def ensure_requirements():
+    required = ['playwright', 'requests', 'setuptools']
+    for pkg in required:
+        try:
+            importlib.import_module(pkg)
+        except ImportError:
+            print(f"⚠️ {pkg} not found. Installing...")
+            install_package(pkg)
+    try:
+        subprocess.check_call([sys.executable, '-m', 'playwright', 'install', 'chromium'])
+        print(f"✅ Playwright Chromium Installed.")
+    except:
+        pass
+
+# ===================================================================
+# 🎨 COLORS
+# ===================================================================
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+# ================== CONFIGURATION ==================
+EMAIL = "ravinar1996@outlook.com"
+PASSWORD = "Admin@123"
+SEARCH_TERM = "rto"
+CREDENTIALS_FILE = "credentials.json"
+# ==================================================
+
+# ===================================================================
+# 💾 SAVE & LOAD CREDENTIALS
+# ===================================================================
+def load_credentials():
+    if os.path.exists(CREDENTIALS_FILE):
+        try:
+            with open(CREDENTIALS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_credentials(creds_list):
+    with open(CREDENTIALS_FILE, 'w') as f:
+        json.dump(creds_list, f, indent=4)
+
+def add_email():
+    global EMAIL, PASSWORD
+    print(f"\n{Colors.CYAN}  💾 Save New Email ID:{Colors.END}")
+    new_email = input(f"{Colors.GREEN}  👉 Enter Email: {Colors.END}").strip()
+    new_password = input(f"{Colors.GREEN}  👉 Enter Password: {Colors.END}").strip()
+    if new_email and new_password:
+        creds = load_credentials()
+        creds.append({"email": new_email, "password": new_password})
+        save_credentials(creds)
+        EMAIL = new_email
+        PASSWORD = new_password
+        print(f"\n{Colors.GREEN}  ✅ Email & Password saved! Current active email: {EMAIL}{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+    else:
+        print(f"\n{Colors.RED}  ❌ Email/Password empty nai hoy to save nahi thay.{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def show_emails():
+    print(f"\n{Colors.CYAN}  📋 SHOW SAVED EMAILS (With Passwords):{Colors.END}")
+    creds = load_credentials()
+    if not creds:
+        print(f"\n{Colors.RED}  ❌ No saved emails found!{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    print(f"  {'─'*60}")
+    for i, cred in enumerate(creds, 1):
+        print(f"  {Colors.GREEN}{i}. Email: {cred['email']} | Password: {cred['password']}{Colors.END}")
+    print(f"  {'─'*60}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def delete_email():
+    global EMAIL, PASSWORD
+    print(f"\n{Colors.CYAN}  🗑️ DELETE SAVED EMAIL:{Colors.END}")
+    creds = load_credentials()
+    if not creds:
+        print(f"\n{Colors.RED}  ❌ No saved emails found!{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    print(f"  {'─'*60}")
+    for i, cred in enumerate(creds, 1):
+        print(f"  {Colors.GREEN}{i}. Email: {cred['email']}{Colors.END}")
+    print(f"  {'─'*60}")
+    choice = input(f"\n{Colors.CYAN}  👉 Enter email number to delete: {Colors.END}").strip()
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(creds):
+            deleted_email = creds[idx]['email']
+            creds.pop(idx)
+            save_credentials(creds)
+            print(f"\n{Colors.GREEN}  ✅ Email deleted: {deleted_email}{Colors.END}")
+            if EMAIL == deleted_email:
+                print(f"  ⚠️ Current active email was deleted! Using default email...")
+                EMAIL = "ravinar1996@outlook.com"
+                PASSWORD = "Admin@123"
+        else:
+            print(f"\n{Colors.RED}  ❌ Invalid selection.{Colors.END}")
+    except:
+        print(f"\n{Colors.RED}  ❌ Invalid number.{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def select_email():
+    global EMAIL, PASSWORD
+    creds = load_credentials()
+    if not creds:
+        print(f"\n{Colors.RED}  ❌ No saved emails found! Pehla Option 6 ma email add karo.{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    print(f"\n{Colors.CYAN}  📋 Saved Emails:{Colors.END}")
+    for i, cred in enumerate(creds, 1):
+        print(f"  {Colors.GREEN}{i}. Email: {cred['email']} | Password: {cred['password']}{Colors.END}")
+    choice = input(f"\n{Colors.CYAN}  👉 Select email number: {Colors.END}").strip()
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(creds):
+            EMAIL = creds[idx]['email']
+            PASSWORD = creds[idx]['password']
+            print(f"\n{Colors.GREEN}  ✅ Selected: {EMAIL} (Password: {PASSWORD}){Colors.END}")
+        else:
+            print(f"\n{Colors.RED}  ❌ Invalid selection.{Colors.END}")
+    except:
+        print(f"\n{Colors.RED}  ❌ Invalid number.{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 🔑 CHANGE EMAIL/PASSWORD
+# ===================================================================
+def change_credentials():
+    global EMAIL, PASSWORD
+    print(f"\n{Colors.CYAN}  🔑 Current Credentials:{Colors.END}")
+    print(f"  Email: {EMAIL}")
+    print(f"  Password: {PASSWORD}")
+    new_email = input(f"\n{Colors.GREEN}  👉 Enter new Email (or press Enter to keep current): {Colors.END}").strip()
+    if new_email:
+        EMAIL = new_email
+        print(f"  ✅ Email updated!")
+    new_password = input(f"{Colors.GREEN}  👉 Enter new Password (or press Enter to keep current): {Colors.END}").strip()
+    if new_password:
+        PASSWORD = new_password
+        print(f"  ✅ Password updated!")
+    print(f"\n{Colors.GREEN}  ✅ Credentials updated!{Colors.END}")
+    print(f"  New Email: {EMAIL}")
+    print(f"  New Password: {PASSWORD}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 📦 INSTALL DEPENDENCIES OPTION
+# ===================================================================
+def install_requirements():
+    print(f"\n{Colors.CYAN}  📦 Installing/Updating Requirements...{Colors.END}")
+    packages = ['playwright', 'requests', 'setuptools']
+    for pkg in packages:
+        print(f"  ⏳ {pkg}...")
+        install_package(pkg)
+
+    print(f"  ⏳ Installing Playwright Chromium Browser...")
+    try:
+        subprocess.check_call([sys.executable, '-m', 'playwright', 'install', 'chromium'])
+    except:
+        pass
+
+    print(f"{Colors.GREEN}  ✅ All requirements installed!{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 🧹 CLEAR CACHE (CREDENTIALS SAFE)
+# ===================================================================
+def clear_cache():
+    print(f"\n{Colors.CYAN}  🧹 Clearing ALL Cache (Saving Credentials)...{Colors.END}")
+    # 1. User data folder delete karo
+    try:
+        if os.path.exists("./user_data"):
+            import shutil
+            shutil.rmtree("./user_data")
+            print(f"  ✅ User data cleared: ./user_data")
+        else:
+            print(f"  ⚠️ No user data found: ./user_data")
+    except Exception as e:
+        print(f"  ❌ Error clearing user_data: {e}")
+    # 2. __pycache__ folder delete karo
+    try:
+        if os.path.exists("./__pycache__"):
+            import shutil
+            shutil.rmtree("./__pycache__")
+            print(f"  ✅ __pycache__ cleared!")
+        else:
+            print(f"  ⚠️ No __pycache__ found.")
+    except:
+        pass
+    # 3. license.lic file delete karo
+    try:
+        if os.path.exists("license.lic"):
+            os.remove("license.lic")
+            print(f"  ✅ license.lic file cleared!")
+        else:
+            print(f"  ⚠️ No license.lic file found.")
+    except:
+        pass
+    # 4. Temp files delete karo
+    try:
+        if os.path.exists("./temp"):
+            import shutil
+            shutil.rmtree("./temp")
+            print(f"  ✅ Temp files cleared!")
+        else:
+            print(f"  ⚠️ No temp files found.")
+    except:
+        pass
+    # 5. Badhi .txt, .log files delete karo
+    try:
+        for file in os.listdir("."):
+            if file.endswith((".txt", ".log")):
+                if file != "terminal_subscribe.py":
+                    os.remove(file)
+                    print(f"  ✅ {file} cleared!")
+    except:
+        pass
+    # 6. Badhi .pyc files delete karo
+    try:
+        for file in os.listdir("."):
+            if file.endswith(".pyc"):
+                os.remove(file)
+                print(f"  ✅ {file} cleared!")
+    except:
+        pass
+    
+    # ⚠️ IMPORTANT: credentials.json DELETE NA KARO (Emails Safe Rakhvo)
+    print(f"\n{Colors.GREEN}  ✅ Cache cleared! Credentials.json SAFE rahyu chhe.{Colors.END}")
+    print(f"\n{Colors.GREEN}  ✅ Saved Emails/Passwords protected!{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 🧹 DYNAMIC POPUP HANDLER
+# ===================================================================
+async def handle_popups(page):
+    try:
+        # 1. "Save password?" popup -> SAVE KARO
+        save_btn = page.locator("button:has-text('Save')").first
+        if await save_btn.is_visible():
+            await save_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   🔑 Save password popup: SAVED!")
+            return True
+        # 2. "No thanks" / "Never" button -> HATAVO
+        no_thanks_btn = page.locator("button:has-text('No thanks'), button:has-text('Never')").first
+        if await no_thanks_btn.is_visible():
+            await no_thanks_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   ❌ Popup removed (No thanks)!")
+        # 3. Cookie popup -> ACCEPT KARO
+        cookie_btn = page.locator("button:has-text('Accept All'), button:has-text('Reject All')").first
+        if await cookie_btn.is_visible():
+            await cookie_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   🍪 Cookie popup cleared!")
+        # 4. Generic Close button -> HATAVO
+        close_btn = page.locator("button[aria-label='Close'], button:has-text('Close')").first
+        if await close_btn.is_visible():
+            await close_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   ❌ Generic popup cleared!")
+    except:
+        pass
+    return False
+
+# ===================================================================
+# ⚠️ "Something Went Wrong" ERROR PAGE HANDLE KARO
+# ===================================================================
+async def handle_error_page(page, search_url):
+    try:
+        error_text = page.locator("text=Something Went Wrong").first
+        if await error_text.is_visible():
+            print("   ⚠️ Something Went Wrong page detected!")
+            try:
+                try_again_btn = page.locator("button:has-text('Try again')").first
+                if await try_again_btn.is_visible():
+                    await try_again_btn.click()
+                    await page.wait_for_timeout(5000)
+                    print("   ✅ Try again button clicked!")
+                    return True
+            except:
+                pass
+            print("   ⚠️ Try again failed. Going back to search page...")
+            await page.goto(search_url, wait_until="commit")
+            await page.wait_for_timeout(8000)
+            return True
+    except:
+        pass
+    return False
+
+# ===================================================================
+# 🚀 MAIN SUBSCRIBE FUNCTION
+# ===================================================================
+async def subscribe_all_apis():
+    async with async_playwright() as p:
+        user_data_dir = "./user_data"
+        context = await p.chromium.launch_persistent_context(
+            user_data_dir, 
+            headless=False,
+            viewport={'width': 1280, 'height': 720}
+        )
+        page = context.pages[0] if context.pages else await context.new_page()
+        page.set_default_timeout(60000)
+
+        print(f"{Colors.CYAN}  🔒 Starting Subscription Process...{Colors.END}")
+
+        print("   🔍 Checking page status...")
+        try:
+            await page.goto("https://rapidapi.com/search?term=rto", wait_until="commit")
+        except:
+            pass
+        await page.wait_for_timeout(15000)
+
+        await handle_popups(page)
+
+        print("   🔍 Checking if login required...")
+        try:
+            sign_in_btn = page.locator("button:has-text('Sign In'), a:has-text('Sign In')").first
+            if await sign_in_btn.is_visible():
+                print("   ⚠️ Sign In required! Opening login page...")
+                await page.goto("https://rapidapi.com/auth/login", wait_until="commit")
+                await page.wait_for_timeout(7000)
+                await handle_popups(page)
+                try:
+                    await page.locator("#email").wait_for(state="visible", timeout=30000)
+                    await page.locator("#email").fill(EMAIL)
+                    await page.locator("#password").fill(PASSWORD)
+                    await page.locator("button[type='submit']").click()
+                    await page.wait_for_timeout(10000)
+                    print("   ✅ Login successful!")
+                except Exception as e:
+                    print(f"   ⚠️ Login issue: {e}")
+                    try:
+                        await page.locator("input[type='email']").wait_for(state="visible", timeout=30000)
+                        await page.locator("input[type='email']").fill(EMAIL)
+                        await page.locator("input[type='password']").fill(PASSWORD)
+                        await page.locator("button[type='submit']").click()
+                        await page.wait_for_timeout(10000)
+                        print("   ✅ Login successful (Fallback)!")
+                    except Exception as e2:
+                        print(f"   ❌ Login failed completely: {e2}")
+                        return
+                await page.goto("https://rapidapi.com/search?term=rto", wait_until="commit")
+                await page.wait_for_timeout(15000)
+                await handle_popups(page)
+            else:
+                print("   ✅ Already logged in! Skipping login...")
+        except:
+            print("   ✅ No Sign In button found. Already logged in!")
+
+        print(f"\n🔍 Searching for '{SEARCH_TERM}'...")
+        search_url = f"https://rapidapi.com/search?term={SEARCH_TERM}"
+        try:
+            await page.goto(search_url, wait_until="commit")
+        except:
+            pass
+        await page.wait_for_timeout(15000)
+
+        print("   ⬇️ Moving mouse cursor down (to center)...")
+        await page.mouse.move(900, 500)
+        await page.wait_for_timeout(2000)
+
+        print("   ⬇️ Scrolling down (15 times)...")
+        for _ in range(15):
+            await page.mouse.wheel(0, 3000)
+            await page.wait_for_timeout(1000)
+
+        print("   🔢 Counting ALL APIs...")
+        all_api_links = page.locator("a[href*='/api/']")
+        total_count = await all_api_links.count()
+        print(f"   ✅ Total {total_count} APIs found on the page.\n")
+
+        total_subscribed = 0
+        failed_apis = []
+
+        for idx in range(total_count):
+            print(f"   🖱️ Clicking API {idx+1} of {total_count}...")
+            try:
+                all_api_links = page.locator("a[href*='/api/']")
+                await all_api_links.nth(idx).click()
+                await page.wait_for_timeout(8000)
+                await handle_error_page(page, search_url)
+                await handle_popups(page)
+                try:
+                    subscribe_run_btn = page.locator("button:has-text('Subscribe to Run')").first
+                    await subscribe_run_btn.wait_for(state="visible", timeout=10000)
+                    await subscribe_run_btn.click()
+                    print(f"      ✅ Clicked 'Subscribe to Run'")
+                except:
+                    change_plan_btn = page.locator("button:has-text('Change plan')").first
+                    await change_plan_btn.wait_for(state="visible", timeout=10000)
+                    await change_plan_btn.click()
+                    print(f"      ✅ Clicked 'Change plan' (Already Subscribed)")
+                await page.wait_for_timeout(5000)
+                await handle_error_page(page, search_url)
+                await handle_popups(page)
+                try:
+                    basic_button = page.locator("button:has-text('Start Free Plan'), button:has-text('Request Access')").first
+                    await basic_button.wait_for(state="visible", timeout=20000)
+                    await basic_button.click()
+                    print(f"      ✅ Started Free Basic Plan!")
+                except:
+                    print(f"      ⚠️ No Free Plan available. Skipping...")
+                    failed_apis.append(f"API {idx+1} (No Free Plan)")
+                    await page.goto(search_url, wait_until="commit")
+                    await page.wait_for_timeout(8000)
+                    continue
+                await page.wait_for_timeout(3000)
+                confirm_button = page.locator("button:has-text('OK'), button:has-text('Confirm'), button:has-text('Subscribe')").first
+                if await confirm_button.is_visible():
+                    await confirm_button.click()
+                    print(f"      🎉 SUBSCRIBED! (Total: {total_subscribed + 1})")
+                    total_subscribed += 1
+                await page.goto(search_url, wait_until="commit")
+                await page.wait_for_timeout(8000)
+                await handle_popups(page)
+                print(f"   ⬇️ Moving mouse cursor down (to load next API)...")
+                await page.mouse.move(900, 500)
+                await page.wait_for_timeout(2000)
+                print(f"   ⬇️ Scrolling down 2-3 times...")
+                for _ in range(3):
+                    await page.mouse.wheel(0, 3000)
+                    await page.wait_for_timeout(1000)
+            except Exception as e:
+                print(f"      ❌ Error: {e}")
+                failed_apis.append(f"API {idx+1} ({e})")
+                await page.goto(search_url, wait_until="commit")
+                await page.wait_for_timeout(8000)
+                continue
+
+        print(f"\n📊 FINAL REPORT:")
+        print(f"   ✅ Successfully Subscribed: {total_subscribed} APIs")
+        print(f"   ❌ Failed APIs: {len(failed_apis)}")
+        if failed_apis:
+            for api in failed_apis:
+                print(f"      - {api}")
+        print(f"\n🖥️ Browser 30 second open rahese - Check karo ke badhi subscribed chhe ke nahi.")
+        await page.wait_for_timeout(30000)
+        await context.close()
+        print("Browser closed.")
+
+# ===================================================================
+# 🚀 MAIN MENU
+# ===================================================================
+def main():
+    ensure_requirements()
+    clear = lambda: os.system('cls' if os.name == 'nt' else 'clear')
+    clear()
+    print(f"{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗")
+    print(f"║   🔒 ZYNTRASEC SECURITY - ALL API SUBSCRIBER                     ║")
+    print(f"║   Version: 5.0                                                ║")
+    print(f"║   {Colors.END}")
+    print(f"╚══════════════════════════════════════════════════════════════╝{Colors.END}")
+    print(f"\n{Colors.CYAN}  📋 MENU:{Colors.END}")
+    print(f"  {Colors.GREEN}1{Colors.END} 🚀 Subscribe All APIs")
+    print(f"  {Colors.GREEN}2{Colors.END} 📦 Install Requirements")
+    print(f"  {Colors.GREEN}3{Colors.END} 🚪 Exit")
+    print(f"  {Colors.YELLOW}4{Colors.END} 🔑 Change Email/Password")
+    print(f"  {Colors.YELLOW}5{Colors.END} 🧹 Clear Cache/Cookies")
+    print(f"  {Colors.YELLOW}6{Colors.END} 💾 Save Email ID (Multiple)")
+    print(f"  {Colors.YELLOW}7{Colors.END} 🔄 Select & Use Saved Email")
+    print(f"  {Colors.YELLOW}8{Colors.END} 📋 Show Emails")
+    print(f"  {Colors.YELLOW}9{Colors.END} 🗑️ Delete Emails")
+    
+    choice = input(f"\n{Colors.CYAN}  👉 Enter choice: {Colors.END}").strip()
+
+    if choice == '1':
+        asyncio.run(subscribe_all_apis())
+    elif choice == '2':
+        install_requirements()
+        main()
+    elif choice == '3':
+        print(f"{Colors.GREEN}  👋 Exiting...{Colors.END}")
+        sys.exit(0)
+    elif choice == '4':
+        change_credentials()
+        main()
+    elif choice == '5':
+        clear_cache()
+        main()
+    elif choice == '6':
+        add_email()
+        main()
+    elif choice == '7':
+        select_email()
+        main()
+    elif choice == '8':
+        show_emails()
+        main()
+    elif choice == '9':
+        delete_email()
+        main()
+    else:
+        print(f"{Colors.RED}  ❌ Invalid choice.{Colors.END}")
+        main()
+
+if __name__ == "__main__":
+    main()

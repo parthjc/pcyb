@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+import os
+import sys
+import subprocess
+import importlib
+import asyncio
+from playwright.async_api import async_playwright
+
+# ===================================================================
+# 📦 AUTO-INSTALL DEPENDENCIES
+# ===================================================================
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+        print(f"✅ Installed: {package}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install {package}: {e}")
+        return False
+
+def ensure_requirements():
+    required = ['playwright', 'requests', 'setuptools']
+    for pkg in required:
+        try:
+            importlib.import_module(pkg)
+        except ImportError:
+            print(f"⚠️ {pkg} not found. Installing...")
+            install_package(pkg)
+    try:
+        subprocess.check_call([sys.executable, '-m', 'playwright', 'install', 'chromium'])
+        print(f"✅ Playwright Chromium Installed.")
+    except:
+        pass
+
+# ===================================================================
+# 🎨 COLORS
+# ===================================================================
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+# ================== CONFIGURATION ==================
+EMAIL = "ravinar1996@outlook.com"
+PASSWORD = "Admin@123"
+
+# ==================================================
+# 14 APIs (rto-vehicle-details5 PEHLA)
+# ==================================================
+API_NAMES = [
+    "rto-vehicle-details5",  # <-- 8th card (cStudios) select thase
+    "vehicle-rc-verification-advance",
+    "vahan-vehicle-details-api",
+    "rto-vehicle-information-india-api",
+    "rto-vehicle-information-india-mega",
+    "rto-vehicle-info-api",
+    "rto-vehicle-details6",
+    "indian-rto-vehicle-details-mega",
+    "rto-vehicle-details-api",
+    "vehicle-rc-information-mega1",
+    "rto-challan-information-india",
+    "rto-vehicle-information-india",
+    "rto-vehicle-details5",  # <-- 2nd time (Pan 8th card j)
+    "rto-vehicle-details-api"
+]
+# ==================================================
+
+async def subscribe_all_apis():
+    async with async_playwright() as p:
+        # Persistent context: Login cookies save rahese
+        user_data_dir = "./user_data"
+        context = await p.chromium.launch_persistent_context(user_data_dir, headless=False)
+        page = context.pages[0] if context.pages else await context.new_page()
+        page.set_default_timeout(30000)
+
+        print(f"{Colors.CYAN}  🔒 Starting Subscription Process...{Colors.END}")
+
+        # --- STEP 1: LOGIN ---
+        print("Opening login page...")
+        await page.goto("https://rapidapi.com/auth/login", wait_until="domcontentloaded")
+        await page.wait_for_timeout(8000)
+
+        try:
+            accept_cookies = page.locator("button:has-text('Accept All')")
+            if await accept_cookies.is_visible():
+                await accept_cookies.click()
+                await page.wait_for_timeout(1000)
+                print("✅ Cookie banner accepted.")
+        except:
+            pass
+
+        if "auth/login" in page.url:
+            print("Logging in...")
+            try:
+                await page.locator("#email").wait_for(state="visible", timeout=30000)
+                await page.locator("#email").fill(EMAIL)
+                await page.locator("#password").fill(PASSWORD)
+                await page.locator("button[type='submit']").click()
+                await page.wait_for_timeout(10000)
+                print("✅ Login successful!")
+            except Exception as e:
+                print(f"⚠️ Login issue: {e}")
+        else:
+            print("✅ Already logged in from previous session!")
+
+        # ==========================================
+        # STEP 2: SEARCH & SUBSCRIBE LOOP
+        # ==========================================
+        total_apis = len(API_NAMES)
+        print(f"\n🎯 Total {total_apis} APIs subscribe karva mate ready chhe.\n")
+
+        for i, api_name in enumerate(API_NAMES):
+            print(f"🔵 STEP {i+1} of {total_apis}: Searching for '{api_name}'...")
+
+            try:
+                # Step A: Search page par jao
+                await page.goto("https://rapidapi.com/search", wait_until="domcontentloaded")
+                await page.wait_for_timeout(6000)
+
+                # Step B: Search bar ma API nu naam type karo
+                search_bar = page.locator("input[placeholder*='Search' i]").first
+                await search_bar.wait_for(state="visible", timeout=15000)
+                await search_bar.click()
+                await page.keyboard.type(api_name, delay=50)
+                await page.keyboard.press("Enter")
+
+                # Step C: Results load thava mate wait
+                await page.wait_for_timeout(7000)
+
+                # Step D: EXACT API CARD PAR CLICK KARO
+                if api_name == "rto-vehicle-details5":
+                    # Ahiya 8th card select karsu (index 0 thi start, etle 8th = nth(7))
+                    api_link = page.locator("a[href*='/api/']").nth(7)
+                    
+                    # Agar 8th card na madiye to 7th/9th try karo (cStudios shodhva)
+                    if not await api_link.is_visible():
+                        # Fallback: Last wadu card (cStudios chhe j)
+                        api_link = page.locator("a[href*='/api/']").nth(2)
+                else:
+                    # Badhi APIs ma pehla result select karo
+                    api_link = page.locator("a[href*='/api/']").first
+
+                await api_link.wait_for(state="visible", timeout=15000)
+                await api_link.click()
+
+                print(f"   ✅ Opened API page for {api_name}")
+
+                # Step E: API page load thava mate wait
+                await page.wait_for_timeout(8000)
+
+                # Step F: Try "Subscribe to Run" OR "Change plan"
+                try:
+                    subscribe_run_btn = page.locator("button:has-text('Subscribe to Run')").first
+                    await subscribe_run_btn.wait_for(state="visible", timeout=10000)
+                    await subscribe_run_btn.click()
+                    print(f"   ✅ Clicked 'Subscribe to Run'")
+                except:
+                    # Koi API already subscribed hoy to "Change plan" click karo
+                    change_plan_btn = page.locator("button:has-text('Change plan')").first
+                    await change_plan_btn.wait_for(state="visible", timeout=10000)
+                    await change_plan_btn.click()
+                    print(f"   ✅ Clicked 'Change plan' (Already Subscribed)")
+
+                # Step G: Pricing page load thava mate wait
+                await page.wait_for_timeout(5000)
+
+                # Step H: Click "Start Free Plan" (Basic)
+                basic_button = page.locator("button:has-text('Start Free Plan'), button:has-text('Request Access')").first
+                await basic_button.wait_for(state="visible", timeout=20000)
+                await basic_button.click()
+                print(f"   ✅ Started Free Basic Plan!")
+
+                # Step I: Confirm Popup ("OK")
+                await page.wait_for_timeout(3000)
+                confirm_button = page.locator("button:has-text('OK'), button:has-text('Confirm'), button:has-text('Subscribe')").first
+                if await confirm_button.is_visible():
+                    await confirm_button.click()
+                    print(f"   🎉 STEP {i+1} COMPLETED - Subscription CONFIRMED!")
+
+                # Step J: 3 second no gap
+                await page.wait_for_timeout(3000)
+
+            except Exception as e:
+                print(f"   ❌ Error at STEP {i+1}: {e}")
+                print("   ⚠️ Na badhu, pan next API try karo...")
+                continue
+
+        # ==========================================
+        # STEP 3: VERIFICATION
+        # ==========================================
+        print("\n✅ Badhi 14 APIs step-by-step subscribe thai gayi!")
+        print("🖥️ Browser 30 second open rahese - Check karo ke badhi subscribed chhe ke nahi.")
+        await page.wait_for_timeout(30000)
+
+        await context.close()
+        print("Browser closed.")
+
+# ===================================================================
+# 📦 INSTALL DEPENDENCIES OPTION
+# ===================================================================
+def install_requirements():
+    print(f"{Colors.CYAN}  📦 Installing/Updating Requirements...{Colors.END}")
+    packages = ['playwright', 'requests', 'setuptools']
+    for pkg in packages:
+        print(f"  ⏳ {pkg}...")
+        install_package(pkg)
+
+    print(f"  ⏳ Installing Playwright Chromium Browser...")
+    try:
+        subprocess.check_call([sys.executable, '-m', 'playwright', 'install', 'chromium'])
+    except:
+        pass
+
+    print(f"{Colors.GREEN}  ✅ All requirements installed!{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 🚀 MAIN MENU
+# ===================================================================
+def main():
+    ensure_requirements()
+
+    clear = lambda: os.system('cls' if os.name == 'nt' else 'clear')
+    clear()
+    print(f"{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗")
+    print(f"║   🔒 ZYNTRASEC SECURITY - 14 API SUBSCRIBER                     ║")
+    print(f"║   Version: 1.0                                                ║")
+    print(f"║   {Colors.END}")
+    print(f"╚══════════════════════════════════════════════════════════════╝{Colors.END}")
+    print(f"\n{Colors.CYAN}  📋 MENU:{Colors.END}")
+    print(f"  {Colors.GREEN}1{Colors.END} 🚀 Subscribe All 14 APIs")
+    print(f"  {Colors.GREEN}2{Colors.END} 📦 Install Requirements")
+    print(f"  {Colors.GREEN}3{Colors.END} 🚪 Exit")
+
+    choice = input(f"\n{Colors.CYAN}  👉 Enter choice: {Colors.END}").strip()
+
+    if choice == '1':
+        asyncio.run(subscribe_all_apis())
+    elif choice == '2':
+        install_requirements()
+        main()
+    elif choice == '3':
+        print(f"{Colors.GREEN}  👋 Exiting...{Colors.END}")
+        sys.exit(0)
+    else:
+        print(f"{Colors.RED}  ❌ Invalid choice.{Colors.END}")
+        main()
+
+if __name__ == "__main__":
+    main()

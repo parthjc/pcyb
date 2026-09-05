@@ -1,0 +1,27 @@
+ Aa API Key Vapravta Tamara 25 APIs:
+#	API Name	Host
+1	RTO Vehicle Details	rto-vehicle-details.p.rapidapi.com
+2	RTO Vehicle Challan	rto-vehicle-information-india.p.rapidapi.com
+3	RTO Challan Info	rto-challan-information-india.p.rapidapi.com
+4	RTO Challan API	rto-challan-api.p.rapidapi.com
+5	Indian RTOS Names	indian-rtos-names-search.p.rapidapi.com
+6	RTO Office Location	rto-office-location-api.p.rapidapi.com
+7	RTO Vehicle Details RC	rto-vehicle-details-rc-puc-insurance-mparivahan.p.rapidapi.com
+8	RTO Vehicle Information India API	rto-vehicle-information-india-api.p.rapidapi.com
+9	RTO Vehicle Information India2	rto-vehicle-information-india2.p.rapidapi.com
+10	RTO Vehicle Details Pro	rto-vehicle-details-pro.p.rapidapi.com
+11	RTO Vehicle Information India Mega	rto-vehicle-information-india-mega.p.rapidapi.com
+12	RTO Vehicle Info API	rto-vehicle-info-api.p.rapidapi.com
+13	RTO Vehicle Details6	rto-vehicle-details6.p.rapidapi.com
+14	Indian RTO Vehicle Details Mega	indian-rto-vehicle-details-mega.p.rapidapi.com
+15	Vehicle RC Owner Details	vehicle-rc-owner-details-api-india-rto-data.p.rapidapi.com
+16	Vehicle RC Verification RTO	vehicle-rc-verification-rto.p.rapidapi.com
+17	RTO Vehicle Details API	rto-vehicle-details-api.p.rapidapi.com
+18	RTO Vehicle Details5	rto-vehicle-details5.p.rapidapi.com
+19	RTO Vehicle Details API1	rto-vehicle-details-api1.p.rapidapi.com
+20	Vehicle RC Details Mega	vehicle-rc-details-mega.p.rapidapi.com
+21	Vehicle RC Information Mega	vehicle-rc-information-mega.p.rapidapi.com
+22	Vehicle RC Verification Advance	vehicle-rc-verification-advance.p.rapidapi.com
+23	Vehicle RC Information Mega1	vehicle-rc-information-mega1.p.rapidapi.com
+24	Vahan Vehicle Details API	vahan-vehicle-details-api.p.rapidapi.com
+25	RTO Vehicle Details5 (Duplicate)	rto-vehicle-details5.p.rapidapi.com
