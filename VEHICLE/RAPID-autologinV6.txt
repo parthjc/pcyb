@@ -1,0 +1,1132 @@
+#!/usr/bin/env python3
+import os
+import sys
+import subprocess
+import importlib
+import asyncio
+import json
+import time
+from datetime import datetime, timedelta
+from playwright.async_api import async_playwright
+
+# ===================================================================
+# 📦 AUTO-INSTALL DEPENDENCIES
+# ===================================================================
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+        print(f"✅ Installed: {package}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install {package}: {e}")
+        return False
+
+def ensure_requirements():
+    required = ['playwright', 'requests', 'setuptools']
+    for pkg in required:
+        try:
+            importlib.import_module(pkg)
+        except ImportError:
+            print(f"⚠️ {pkg} not found. Installing...")
+            install_package(pkg)
+    try:
+        subprocess.check_call([sys.executable, '-m', 'playwright', 'install', 'chromium'])
+        print(f"✅ Playwright Chromium Installed.")
+    except:
+        pass
+
+# ===================================================================
+# 🎨 COLORS
+# ===================================================================
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+# ================== CONFIGURATION ==================
+EMAIL = "ravinar1996@outlook.com"
+PASSWORD = "Admin@123"
+SEARCH_TERM = "rto"
+CREDENTIALS_FILE = "credentials.json"
+SUBSCRIPTION_LOG_FILE = "subscription_log.json"
+# ==================================================
+
+# ===================================================================
+# 💾 SAVE & LOAD CREDENTIALS
+# ===================================================================
+def load_credentials():
+    if os.path.exists(CREDENTIALS_FILE):
+        try:
+            with open(CREDENTIALS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_credentials(creds_list):
+    with open(CREDENTIALS_FILE, 'w') as f:
+        json.dump(creds_list, f, indent=4)
+
+def add_email():
+    global EMAIL, PASSWORD
+    print(f"\n{Colors.CYAN}  💾 Save New Email ID:{Colors.END}")
+    new_email = input(f"{Colors.GREEN}  👉 Enter Email: {Colors.END}").strip()
+    new_password = input(f"{Colors.GREEN}  👉 Enter Password: {Colors.END}").strip()
+    if new_email and new_password:
+        creds = load_credentials()
+        creds.append({"email": new_email, "password": new_password})
+        save_credentials(creds)
+        EMAIL = new_email
+        PASSWORD = new_password
+        print(f"\n{Colors.GREEN}  ✅ Email & Password saved! Current active email: {EMAIL}{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+    else:
+        print(f"\n{Colors.RED}  ❌ Email/Password empty nai hoy to save nahi thay.{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def show_emails():
+    print(f"\n{Colors.CYAN}  📋 SHOW SAVED EMAILS (With Passwords):{Colors.END}")
+    creds = load_credentials()
+    if not creds:
+        print(f"\n{Colors.RED}  ❌ No saved emails found!{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    print(f"  {'─'*60}")
+    for i, cred in enumerate(creds, 1):
+        print(f"  {Colors.GREEN}{i}. Email: {cred['email']} | Password: {cred['password']}{Colors.END}")
+    print(f"  {'─'*60}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def delete_email():
+    global EMAIL, PASSWORD
+    print(f"\n{Colors.CYAN}  🗑️ DELETE SAVED EMAIL:{Colors.END}")
+    creds = load_credentials()
+    if not creds:
+        print(f"\n{Colors.RED}  ❌ No saved emails found!{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    print(f"  {'─'*60}")
+    for i, cred in enumerate(creds, 1):
+        print(f"  {Colors.GREEN}{i}. Email: {cred['email']}{Colors.END}")
+    print(f"  {'─'*60}")
+    choice = input(f"\n{Colors.CYAN}  👉 Enter email number to delete: {Colors.END}").strip()
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(creds):
+            deleted_email = creds[idx]['email']
+            creds.pop(idx)
+            save_credentials(creds)
+            print(f"\n{Colors.GREEN}  ✅ Email deleted: {deleted_email}{Colors.END}")
+            if EMAIL == deleted_email:
+                print(f"  ⚠️ Current active email was deleted! Using default email...")
+                EMAIL = "ravinar1996@outlook.com"
+                PASSWORD = "Admin@123"
+        else:
+            print(f"\n{Colors.RED}  ❌ Invalid selection.{Colors.END}")
+    except:
+        print(f"\n{Colors.RED}  ❌ Invalid number.{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def select_email():
+    global EMAIL, PASSWORD
+    creds = load_credentials()
+    if not creds:
+        print(f"\n{Colors.RED}  ❌ No saved emails found! Pehla Option 6 ma email add karo.{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    print(f"\n{Colors.CYAN}  📋 Saved Emails:{Colors.END}")
+    for i, cred in enumerate(creds, 1):
+        print(f"  {Colors.GREEN}{i}. Email: {cred['email']} | Password: {cred['password']}{Colors.END}")
+    choice = input(f"\n{Colors.CYAN}  👉 Select email number: {Colors.END}").strip()
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(creds):
+            EMAIL = creds[idx]['email']
+            PASSWORD = creds[idx]['password']
+            print(f"\n{Colors.GREEN}  ✅ Selected: {EMAIL} (Password: {PASSWORD}){Colors.END}")
+        else:
+            print(f"\n{Colors.RED}  ❌ Invalid selection.{Colors.END}")
+    except:
+        print(f"\n{Colors.RED}  ❌ Invalid number.{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 🔑 CHANGE EMAIL/PASSWORD
+# ===================================================================
+def change_credentials():
+    global EMAIL, PASSWORD
+    print(f"\n{Colors.CYAN}  🔑 Current Credentials:{Colors.END}")
+    print(f"  Email: {EMAIL}")
+    print(f"  Password: {PASSWORD}")
+    new_email = input(f"\n{Colors.GREEN}  👉 Enter new Email (or press Enter to keep current): {Colors.END}").strip()
+    if new_email:
+        EMAIL = new_email
+        print(f"  ✅ Email updated!")
+    new_password = input(f"{Colors.GREEN}  👉 Enter new Password (or press Enter to keep current): {Colors.END}").strip()
+    if new_password:
+        PASSWORD = new_password
+        print(f"  ✅ Password updated!")
+    print(f"\n{Colors.GREEN}  ✅ Credentials updated!{Colors.END}")
+    print(f"  New Email: {EMAIL}")
+    print(f"  New Password: {PASSWORD}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 📦 INSTALL DEPENDENCIES OPTION
+# ===================================================================
+def install_requirements():
+    print(f"\n{Colors.CYAN}  📦 Installing/Updating Requirements...{Colors.END}")
+    packages = ['playwright', 'requests', 'setuptools']
+    for pkg in packages:
+        print(f"  ⏳ {pkg}...")
+        install_package(pkg)
+
+    print(f"  ⏳ Installing Playwright Chromium Browser...")
+    try:
+        subprocess.check_call([sys.executable, '-m', 'playwright', 'install', 'chromium'])
+    except:
+        pass
+
+    print(f"{Colors.GREEN}  ✅ All requirements installed!{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 🧹 CLEAR CACHE (CREDENTIALS SAFE)
+# ===================================================================
+def clear_cache():
+    print(f"\n{Colors.CYAN}  🧹 Clearing ALL Cache (Saving Credentials)...{Colors.END}")
+    try:
+        if os.path.exists("./user_data"):
+            import shutil
+            shutil.rmtree("./user_data")
+            print(f"  ✅ User data cleared: ./user_data")
+        else:
+            print(f"  ⚠️ No user data found: ./user_data")
+    except Exception as e:
+        print(f"  ❌ Error clearing user_data: {e}")
+    try:
+        if os.path.exists("./__pycache__"):
+            import shutil
+            shutil.rmtree("./__pycache__")
+            print(f"  ✅ __pycache__ cleared!")
+        else:
+            print(f"  ⚠️ No __pycache__ found.")
+    except:
+        pass
+    try:
+        if os.path.exists("license.lic"):
+            os.remove("license.lic")
+            print(f"  ✅ license.lic file cleared!")
+        else:
+            print(f"  ⚠️ No license.lic file found.")
+    except:
+        pass
+    try:
+        if os.path.exists("./temp"):
+            import shutil
+            shutil.rmtree("./temp")
+            print(f"  ✅ Temp files cleared!")
+        else:
+            print(f"  ⚠️ No temp files found.")
+    except:
+        pass
+    try:
+        for file in os.listdir("."):
+            if file.endswith((".txt", ".log")):
+                if file != "terminal_subscribe.py":
+                    os.remove(file)
+                    print(f"  ✅ {file} cleared!")
+    except:
+        pass
+    try:
+        for file in os.listdir("."):
+            if file.endswith(".pyc"):
+                os.remove(file)
+                print(f"  ✅ {file} cleared!")
+    except:
+        pass
+    
+    print(f"\n{Colors.GREEN}  ✅ Cache cleared! Credentials.json SAFE rahyu chhe.{Colors.END}")
+    print(f"\n{Colors.GREEN}  ✅ Saved Emails/Passwords protected!{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 📊 SUBSCRIPTION LOG MANAGEMENT
+# ===================================================================
+def load_subscription_log():
+    if os.path.exists(SUBSCRIPTION_LOG_FILE):
+        try:
+            with open(SUBSCRIPTION_LOG_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {"subscriptions": [], "last_run": None, "subscribed_apis": []}
+    return {"subscriptions": [], "last_run": None, "subscribed_apis": []}
+
+def save_subscription_log(log_data):
+    with open(SUBSCRIPTION_LOG_FILE, 'w') as f:
+        json.dump(log_data, f, indent=4)
+
+def log_subscription(api_name, api_url, status="subscribed"):
+    log = load_subscription_log()
+    timestamp = datetime.now().isoformat()
+    
+    # Check if already exists
+    for sub in log["subscriptions"]:
+        if sub["api_url"] == api_url:
+            sub["status"] = status
+            sub["last_checked"] = timestamp
+            sub["email"] = EMAIL
+            save_subscription_log(log)
+            return
+    
+    # New subscription
+    log["subscriptions"].append({
+        "api_name": api_name,
+        "api_url": api_url,
+        "status": status,
+        "subscribed_at": timestamp,
+        "last_checked": timestamp,
+        "email": EMAIL
+    })
+    log["last_run"] = timestamp
+    save_subscription_log(log)
+
+def log_api_attempt(api_name, api_url, status="attempted"):
+    """Log every API attempt (successful or failed)"""
+    log = load_subscription_log()
+    timestamp = datetime.now().isoformat()
+    
+    # Add to attempted APIs list
+    if "attempted_apis" not in log:
+        log["attempted_apis"] = []
+    
+    # Check if already attempted
+    for api in log["attempted_apis"]:
+        if api["api_url"] == api_url:
+            api["status"] = status
+            api["last_attempt"] = timestamp
+            save_subscription_log(log)
+            return
+    
+    log["attempted_apis"].append({
+        "api_name": api_name,
+        "api_url": api_url,
+        "status": status,
+        "attempted_at": timestamp,
+        "email": EMAIL
+    })
+    save_subscription_log(log)
+
+# ===================================================================
+# 🧹 DYNAMIC POPUP HANDLER
+# ===================================================================
+async def handle_popups(page):
+    try:
+        save_btn = page.locator("button:has-text('Save')").first
+        if await save_btn.is_visible():
+            await save_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   🔑 Save password popup: SAVED!")
+            return True
+        no_thanks_btn = page.locator("button:has-text('No thanks'), button:has-text('Never')").first
+        if await no_thanks_btn.is_visible():
+            await no_thanks_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   ❌ Popup removed (No thanks)!")
+        cookie_btn = page.locator("button:has-text('Accept All'), button:has-text('Reject All')").first
+        if await cookie_btn.is_visible():
+            await cookie_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   🍪 Cookie popup cleared!")
+        close_btn = page.locator("button[aria-label='Close'], button:has-text('Close')").first
+        if await close_btn.is_visible():
+            await close_btn.click()
+            await page.wait_for_timeout(1000)
+            print("   ❌ Generic popup cleared!")
+    except:
+        pass
+    return False
+
+# ===================================================================
+# 🔄 RELOAD PAGE IF ERROR OCCURS
+# ===================================================================
+async def handle_error_and_reload(page, search_url, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            error_locator = page.locator("text=Something Went Wrong").first
+            if await error_locator.is_visible():
+                print(f"   ⚠️ Something Went Wrong page detected! (Attempt {attempt + 1}/{max_retries})")
+                
+                try:
+                    try_again_btn = page.locator("button:has-text('Try again')").first
+                    if await try_again_btn.is_visible():
+                        await try_again_btn.click()
+                        await page.wait_for_timeout(5000)
+                        if not await page.locator("text=Something Went Wrong").first.is_visible():
+                            print("   ✅ Error resolved after clicking Try again!")
+                            return True
+                except:
+                    pass
+                
+                print(f"   🔄 Reloading page... (Attempt {attempt + 1}/{max_retries})")
+                await page.reload(wait_until="domcontentloaded")
+                await page.wait_for_timeout(8000)
+                
+                if not await page.locator("text=Something Went Wrong").first.is_visible():
+                    print(f"   ✅ Error resolved after reload! (Attempt {attempt + 1})")
+                    return True
+                else:
+                    if attempt == max_retries - 1:
+                        print("   🔄 Last attempt: Going back to search page...")
+                        await page.goto(search_url, wait_until="domcontentloaded")
+                        await page.wait_for_timeout(8000)
+                        await page.reload(wait_until="domcontentloaded")
+                        await page.wait_for_timeout(5000)
+                        if not await page.locator("text=Something Went Wrong").first.is_visible():
+                            print("   ✅ Error resolved by going to search page!")
+                            return True
+        except Exception as e:
+            print(f"   ⚠️ Error handling attempt {attempt + 1} failed: {e}")
+            await page.wait_for_timeout(2000)
+    
+    print(f"   ❌ Could not resolve error after {max_retries} attempts.")
+    return False
+
+# ===================================================================
+# 🚀 MAIN SUBSCRIBE FUNCTION - COMPLETE VERSION
+# ===================================================================
+async def subscribe_all_apis():
+    async with async_playwright() as p:
+        user_data_dir = "./user_data"
+        context = await p.chromium.launch_persistent_context(
+            user_data_dir, 
+            headless=False,
+            viewport={'width': 1280, 'height': 720}
+        )
+        page = context.pages[0] if context.pages else await context.new_page()
+        page.set_default_timeout(60000)
+
+        print(f"{Colors.CYAN}  🔒 Starting Subscription Process...{Colors.END}")
+
+        search_url = f"https://rapidapi.com/search?term={SEARCH_TERM}"
+        
+        print("   🔍 Checking page status...")
+        try:
+            await page.goto(search_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(10000)
+            await handle_error_and_reload(page, search_url, max_retries=3)
+        except:
+            pass
+        
+        await handle_popups(page)
+
+        print("   🔍 Checking if login required...")
+        try:
+            sign_in_btn = page.locator("button:has-text('Sign In'), a:has-text('Sign In')").first
+            if await sign_in_btn.is_visible():
+                print("   ⚠️ Sign In required! Opening login page...")
+                await page.goto("https://rapidapi.com/auth/login", wait_until="domcontentloaded")
+                await page.wait_for_timeout(7000)
+                await handle_popups(page)
+                try:
+                    await page.locator("#email").wait_for(state="visible", timeout=30000)
+                    await page.locator("#email").fill(EMAIL)
+                    await page.locator("#password").fill(PASSWORD)
+                    await page.locator("button[type='submit']").click()
+                    await page.wait_for_timeout(10000)
+                    print("   ✅ Login successful!")
+                except Exception as e:
+                    print(f"   ⚠️ Login issue: {e}")
+                    try:
+                        await page.locator("input[type='email']").wait_for(state="visible", timeout=30000)
+                        await page.locator("input[type='email']").fill(EMAIL)
+                        await page.locator("input[type='password']").fill(PASSWORD)
+                        await page.locator("button[type='submit']").click()
+                        await page.wait_for_timeout(10000)
+                        print("   ✅ Login successful (Fallback)!")
+                    except Exception as e2:
+                        print(f"   ❌ Login failed completely: {e2}")
+                        return
+                await page.goto(search_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(15000)
+                await handle_error_and_reload(page, search_url, max_retries=3)
+                await handle_popups(page)
+            else:
+                print("   ✅ Already logged in! Skipping login...")
+        except:
+            print("   ✅ No Sign In button found. Already logged in!")
+
+        print(f"\n🔍 Searching for '{SEARCH_TERM}'...")
+        try:
+            await page.goto(search_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(10000)
+            await handle_error_and_reload(page, search_url, max_retries=3)
+        except:
+            pass
+        
+        await page.wait_for_timeout(15000)
+
+        print("   ⬇️ Scrolling down to load all APIs...")
+        for _ in range(20):  # More scrolls to load all
+            await page.mouse.wheel(0, 3000)
+            await page.wait_for_timeout(1000)
+
+        print("   🔢 Counting ALL APIs...")
+        all_api_links = page.locator("a[href*='/api/']")
+        total_count = await all_api_links.count()
+        print(f"   ✅ Total {total_count} APIs found on the page.\n")
+
+        total_subscribed = 0
+        failed_apis = []
+        skipped_apis = []  # For APIs without free plan
+        already_subscribed = []  # For already subscribed APIs
+
+        for idx in range(total_count):
+            print(f"\n{'='*60}")
+            print(f"   🖱️ Processing API {idx+1} of {total_count}...")
+            print(f"{'='*60}")
+            
+            try:
+                # Get API name before clicking
+                all_api_links = page.locator("a[href*='/api/']")
+                api_element = all_api_links.nth(idx)
+                api_name = await api_element.text_content() or f"API_{idx+1}"
+                api_url = await api_element.get_attribute("href") or ""
+                if api_url.startswith("/"):
+                    full_api_url = f"https://rapidapi.com{api_url}"
+                else:
+                    full_api_url = api_url
+                
+                print(f"   📌 API Name: {api_name[:50]}")
+                
+                # Click on API
+                await all_api_links.nth(idx).click()
+                await page.wait_for_timeout(8000)
+                
+                # Handle error
+                await handle_error_and_reload(page, search_url, max_retries=3)
+                await handle_popups(page)
+                
+                current_url = page.url
+                
+                # Try to subscribe
+                try:
+                    # Check for Subscribe to Run button
+                    subscribe_run_btn = page.locator("button:has-text('Subscribe to Run')").first
+                    if await subscribe_run_btn.is_visible():
+                        await subscribe_run_btn.click()
+                        print(f"      ✅ Clicked 'Subscribe to Run'")
+                        await page.wait_for_timeout(5000)
+                        await handle_error_and_reload(page, search_url, max_retries=2)
+                        
+                        # Look for free plan
+                        free_plan_found = False
+                        try:
+                            free_plan = page.locator("button:has-text('Start Free Plan'), button:has-text('Request Access')").first
+                            if await free_plan.is_visible():
+                                await free_plan.click()
+                                print(f"      ✅ Started Free Basic Plan!")
+                                free_plan_found = True
+                        except:
+                            pass
+                        
+                        if not free_plan_found:
+                            # Try other plan options
+                            try:
+                                plan_buttons = await page.locator("button:has-text('Plan'), button:has-text('Subscribe'), button:has-text('Free')").all()
+                                if plan_buttons and len(plan_buttons) > 0:
+                                    await plan_buttons[0].click()
+                                    print(f"      ✅ Clicked on plan option")
+                                    free_plan_found = True
+                            except:
+                                pass
+                        
+                        if free_plan_found:
+                            await page.wait_for_timeout(3000)
+                            await handle_error_and_reload(page, search_url, max_retries=2)
+                            
+                            # Confirm subscription
+                            try:
+                                confirm_button = page.locator("button:has-text('OK'), button:has-text('Confirm'), button:has-text('Subscribe')").first
+                                if await confirm_button.is_visible():
+                                    await confirm_button.click()
+                                    print(f"      🎉 SUBSCRIBED! (Total: {total_subscribed + 1})")
+                                    total_subscribed += 1
+                                    
+                                    # Log successful subscription
+                                    api_title = await page.title() or api_name
+                                    log_subscription(api_title[:100], full_api_url, "active")
+                                    log_api_attempt(api_title[:100], full_api_url, "success")
+                                else:
+                                    print(f"      ⚠️ Confirm button not found")
+                                    failed_apis.append(api_name[:50])
+                                    log_api_attempt(api_name[:50], full_api_url, "failed_confirm")
+                            except:
+                                print(f"      ⚠️ Could not confirm subscription")
+                                failed_apis.append(api_name[:50])
+                                log_api_attempt(api_name[:50], full_api_url, "failed_confirm")
+                        else:
+                            print(f"      ⚠️ No free plan available. Skipping...")
+                            skipped_apis.append(api_name[:50])
+                            log_api_attempt(api_name[:50], full_api_url, "no_free_plan")
+                    else:
+                        # Check if already subscribed
+                        change_plan_btn = page.locator("button:has-text('Change plan')").first
+                        if await change_plan_btn.is_visible():
+                            print(f"      ℹ️ Already Subscribed!")
+                            already_subscribed.append(api_name[:50])
+                            # Log as active
+                            api_title = await page.title() or api_name
+                            log_subscription(api_title[:100], full_api_url, "active")
+                            log_api_attempt(api_title[:100], full_api_url, "already_subscribed")
+                        else:
+                            print(f"      ⚠️ No subscribe option found. Skipping...")
+                            skipped_apis.append(api_name[:50])
+                            log_api_attempt(api_name[:50], full_api_url, "no_option")
+                            
+                except Exception as e:
+                    print(f"      ❌ Subscription error: {e}")
+                    failed_apis.append(api_name[:50])
+                    log_api_attempt(api_name[:50], full_api_url, f"error_{str(e)[:20]}")
+                
+                # Go back to search page
+                await page.goto(search_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(8000)
+                await handle_error_and_reload(page, search_url, max_retries=2)
+                await handle_popups(page)
+                
+                # Scroll to load more if needed
+                print(f"   ⬇️ Scrolling down...")
+                for _ in range(3):
+                    await page.mouse.wheel(0, 3000)
+                    await page.wait_for_timeout(500)
+                    
+            except Exception as e:
+                print(f"      ❌ Error: {e}")
+                failed_apis.append(f"API_{idx+1}")
+                await page.goto(search_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(8000)
+                continue
+
+        # ===================================================================
+        # FINAL REPORT
+        # ===================================================================
+        print(f"\n{'='*60}")
+        print(f"{Colors.CYAN}  📊 FINAL SUBSCRIPTION REPORT{Colors.END}")
+        print(f"{'='*60}")
+        print(f"  {Colors.GREEN}✅ Successfully Subscribed: {total_subscribed}{Colors.END}")
+        print(f"  {Colors.YELLOW}⚠️ Already Subscribed: {len(already_subscribed)}{Colors.END}")
+        print(f"  {Colors.YELLOW}⏭️ Skipped (No Free Plan): {len(skipped_apis)}{Colors.END}")
+        print(f"  {Colors.RED}❌ Failed: {len(failed_apis)}{Colors.END}")
+        print(f"  {Colors.CYAN}📊 Total APIs Processed: {total_count}{Colors.END}")
+        
+        if skipped_apis:
+            print(f"\n  {Colors.YELLOW}Skipped APIs (No Free Plan):{Colors.END}")
+            for api in skipped_apis[:10]:  # Show first 10
+                print(f"    ⏭️ {api}")
+            if len(skipped_apis) > 10:
+                print(f"    ... and {len(skipped_apis) - 10} more")
+        
+        if already_subscribed:
+            print(f"\n  {Colors.YELLOW}Already Subscribed APIs:{Colors.END}")
+            for api in already_subscribed[:10]:
+                print(f"    ✅ {api}")
+            if len(already_subscribed) > 10:
+                print(f"    ... and {len(already_subscribed) - 10} more")
+        
+        if failed_apis:
+            print(f"\n  {Colors.RED}Failed APIs:{Colors.END}")
+            for api in failed_apis[:10]:
+                print(f"    ❌ {api}")
+            if len(failed_apis) > 10:
+                print(f"    ... and {len(failed_apis) - 10} more")
+        
+        # Save final log
+        log = load_subscription_log()
+        log["last_run"] = datetime.now().isoformat()
+        log["total_subscribed_session"] = total_subscribed
+        log["total_apis_processed"] = total_count
+        log["skipped_apis"] = skipped_apis
+        log["already_subscribed"] = already_subscribed
+        log["failed_apis"] = failed_apis
+        save_subscription_log(log)
+        
+        print(f"\n{Colors.CYAN}  📊 Subscription Log saved to: {SUBSCRIPTION_LOG_FILE}{Colors.END}")
+        print(f"\n{Colors.GREEN}  🎯 All possible Free APIs have been subscribed!{Colors.END}")
+        
+        # ===================================================================
+        # VERIFY AGAIN AT THE END
+        # ===================================================================
+        print(f"\n{Colors.CYAN}  🔍 RE-VERIFYING ALL SUBSCRIPTIONS...{Colors.END}")
+        print(f"  This will check if all APIs are actually subscribed.\n")
+        
+        await page.wait_for_timeout(5000)
+        
+        # Call verification
+        await verify_subscriptions_after_subscribe(page, context, search_url)
+        
+        print(f"\n🖥️ Browser will stay open for 30 seconds for final check.")
+        await page.wait_for_timeout(30000)
+        await context.close()
+        print("Browser closed.")
+
+# ===================================================================
+# 🔍 VERIFY SUBSCRIPTIONS AFTER SUBSCRIBE
+# ===================================================================
+async def verify_subscriptions_after_subscribe(page, context, search_url):
+    """Verify subscriptions after the main subscription process"""
+    
+    print(f"\n{Colors.CYAN}  🔍 VERIFYING SUBSCRIPTIONS...{Colors.END}")
+    
+    try:
+        dashboard_url = "https://rapidapi.com/developer/dashboard"
+        
+        # Go to dashboard
+        await page.goto(dashboard_url, wait_until="domcontentloaded")
+        await page.wait_for_timeout(5000)
+        await handle_error_and_reload(page, dashboard_url, max_retries=3)
+        
+        print(f"   📊 Looking for subscribed APIs in dashboard...")
+        
+        subscribed_apis = []
+        
+        try:
+            # Wait for API links
+            await page.wait_for_selector("a[href*='/api/']", timeout=15000)
+            api_links = page.locator("a[href*='/api/']")
+            count = await api_links.count()
+            print(f"   ✅ Found {count} API links in dashboard")
+            
+            for i in range(min(count, 100)):
+                try:
+                    api_element = api_links.nth(i)
+                    api_name = await api_element.text_content() or f"API_{i+1}"
+                    api_url = await api_element.get_attribute("href") or ""
+                    
+                    if api_url:
+                        if api_url.startswith("/"):
+                            full_url = f"https://rapidapi.com{api_url}"
+                        else:
+                            full_url = api_url
+                        
+                        subscribed_apis.append({
+                            "name": api_name.strip()[:50],
+                            "url": full_url
+                        })
+                except:
+                    continue
+                    
+        except Exception as e:
+            print(f"   ⚠️ Could not find API links: {e}")
+            try:
+                cards = page.locator(".api-card, .subscribed-api-card")
+                count = await cards.count()
+                print(f"   ✅ Found {count} API cards")
+                
+                for i in range(min(count, 100)):
+                    try:
+                        card = cards.nth(i)
+                        text = await card.text_content() or f"API_{i+1}"
+                        link = card.locator("a").first
+                        if await link.count() > 0:
+                            api_url = await link.get_attribute("href") or ""
+                            if api_url:
+                                if api_url.startswith("/"):
+                                    full_url = f"https://rapidapi.com{api_url}"
+                                else:
+                                    full_url = api_url
+                                
+                                subscribed_apis.append({
+                                    "name": text.strip()[:50],
+                                    "url": full_url
+                                })
+                    except:
+                        continue
+            except:
+                pass
+
+        # Update log
+        log = load_subscription_log()
+        
+        if subscribed_apis:
+            # Update status of all existing subscriptions
+            current_urls = {sub["api_url"] for sub in log["subscriptions"]}
+            
+            # Mark all as inactive first
+            for sub in log["subscriptions"]:
+                sub["status"] = "inactive"
+                sub["last_checked"] = datetime.now().isoformat()
+            
+            # Mark active ones
+            for api in subscribed_apis:
+                found = False
+                for sub in log["subscriptions"]:
+                    if sub["api_url"] == api["url"]:
+                        sub["status"] = "active"
+                        sub["last_checked"] = datetime.now().isoformat()
+                        sub["api_name"] = api["name"]
+                        found = True
+                        break
+                
+                if not found:
+                    # New subscription found
+                    log["subscriptions"].append({
+                        "api_name": api["name"],
+                        "api_url": api["url"],
+                        "status": "active",
+                        "subscribed_at": datetime.now().isoformat(),
+                        "last_checked": datetime.now().isoformat(),
+                        "email": EMAIL
+                    })
+            
+            save_subscription_log(log)
+        
+        # Show verification summary
+        log = load_subscription_log()
+        active_count = sum(1 for sub in log["subscriptions"] if sub["status"] == "active")
+        inactive_count = sum(1 for sub in log["subscriptions"] if sub["status"] == "inactive")
+        total_count = len(log["subscriptions"])
+        
+        print(f"\n{Colors.GREEN}  📊 FINAL VERIFICATION SUMMARY:{Colors.END}")
+        print(f"  ─────────────────────────────")
+        print(f"  {Colors.GREEN}✅ Active Subscriptions: {active_count}{Colors.END}")
+        print(f"  {Colors.YELLOW}⚠️ Inactive: {inactive_count}{Colors.END}")
+        print(f"  {Colors.CYAN}📊 Total: {total_count}{Colors.END}")
+        
+        if active_count > 0:
+            print(f"\n  {Colors.GREEN}Active APIs:{Colors.END}")
+            for sub in log["subscriptions"]:
+                if sub["status"] == "active":
+                    print(f"    ✅ {sub['api_name']}")
+        
+        if inactive_count > 0:
+            print(f"\n  {Colors.YELLOW}⚠️ Inactive APIs (Need attention):{Colors.END}")
+            for sub in log["subscriptions"]:
+                if sub["status"] == "inactive":
+                    print(f"    ⚠️ {sub['api_name']}")
+            print(f"\n  {Colors.YELLOW}💡 These APIs need to be re-subscribed manually.{Colors.END}")
+        
+        print(f"\n  {Colors.CYAN}📊 Full report saved in: {SUBSCRIPTION_LOG_FILE}{Colors.END}")
+        
+    except Exception as e:
+        print(f"{Colors.RED}  ❌ Verification error: {e}{Colors.END}")
+
+# ===================================================================
+# 🔍 VERIFY SUBSCRIPTIONS STANDALONE
+# ===================================================================
+async def verify_subscriptions():
+    print(f"\n{Colors.CYAN}  🔍 VERIFYING SUBSCRIPTIONS...{Colors.END}")
+    
+    try:
+        async with async_playwright() as p:
+            user_data_dir = "./user_data"
+            
+            context = await p.chromium.launch_persistent_context(
+                user_data_dir, 
+                headless=False,
+                viewport={'width': 1280, 'height': 720},
+                timeout=60000,
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            )
+            
+            page = context.pages[0] if context.pages else await context.new_page()
+            page.set_default_timeout(60000)
+            
+            dashboard_url = "https://rapidapi.com/developer/dashboard"
+            search_url = "https://rapidapi.com/search?term=rto"
+            
+            # Try dashboard first
+            try:
+                await page.goto(dashboard_url, wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(5000)
+                await handle_error_and_reload(page, dashboard_url, max_retries=3)
+            except:
+                await page.goto(search_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(5000)
+                await handle_error_and_reload(page, search_url, max_retries=2)
+
+            print("   🔍 Checking login status...")
+            
+            try:
+                current_url = page.url
+                if "login" in current_url:
+                    print("   ⚠️ Login required!")
+                    try:
+                        await page.locator("input[type='email'], #email").first.wait_for(state="visible", timeout=10000)
+                        await page.locator("input[type='email'], #email").first.fill(EMAIL)
+                        await page.locator("input[type='password'], #password").first.fill(PASSWORD)
+                        await page.locator("button[type='submit']").first.click()
+                        await page.wait_for_timeout(5000)
+                        print("   ✅ Login successful!")
+                        await page.goto(dashboard_url, wait_until="domcontentloaded")
+                        await page.wait_for_timeout(5000)
+                        await handle_error_and_reload(page, dashboard_url, max_retries=3)
+                    except:
+                        print("   ⚠️ Could not login automatically. Please login manually...")
+                        input(f"\n{Colors.YELLOW}  👉 Login manually, then press Enter...{Colors.END}")
+                else:
+                    print("   ✅ Already logged in or no login required.")
+            except Exception as e:
+                print(f"   ⚠️ Login check error: {e}")
+
+            await page.wait_for_timeout(5000)
+            await handle_error_and_reload(page, dashboard_url, max_retries=3)
+
+            print(f"   📊 Looking for subscribed APIs...")
+            
+            subscribed_apis = []
+            
+            try:
+                await page.wait_for_selector("a[href*='/api/'], .api-card, .subscribed-api-card", timeout=15000)
+                
+                api_links = page.locator("a[href*='/api/']")
+                count = await api_links.count()
+                print(f"   ✅ Found {count} API links")
+                
+                for i in range(min(count, 100)):
+                    try:
+                        api_element = api_links.nth(i)
+                        api_name = await api_element.text_content() or f"API_{i+1}"
+                        api_url = await api_element.get_attribute("href") or ""
+                        
+                        if api_url:
+                            if api_url.startswith("/"):
+                                full_url = f"https://rapidapi.com{api_url}"
+                            else:
+                                full_url = api_url
+                            
+                            subscribed_apis.append({
+                                "name": api_name.strip()[:50],
+                                "url": full_url
+                            })
+                    except:
+                        continue
+                        
+            except Exception as e:
+                print(f"   ⚠️ Could not find API links: {e}")
+                
+                try:
+                    cards = page.locator(".api-card, .subscribed-api-card, [class*='subscription']")
+                    count = await cards.count()
+                    print(f"   ✅ Found {count} API cards")
+                    
+                    for i in range(min(count, 100)):
+                        try:
+                            card = cards.nth(i)
+                            text = await card.text_content() or f"API_{i+1}"
+                            link = card.locator("a").first
+                            if await link.count() > 0:
+                                api_url = await link.get_attribute("href") or ""
+                                if api_url:
+                                    if api_url.startswith("/"):
+                                        full_url = f"https://rapidapi.com{api_url}"
+                                    else:
+                                        full_url = api_url
+                                    
+                                    subscribed_apis.append({
+                                        "name": text.strip()[:50],
+                                        "url": full_url
+                                    })
+                        except:
+                            continue
+                except:
+                    pass
+
+            # Update log
+            log = load_subscription_log()
+            
+            if not subscribed_apis:
+                print(f"\n{Colors.YELLOW}  ⚠️ No subscribed APIs found in dashboard.{Colors.END}")
+                print(f"  💡 This could mean:")
+                print(f"     1. You haven't subscribed to any APIs yet")
+                print(f"     2. Dashboard page structure has changed")
+                print(f"     3. Need to login manually")
+                
+                print(f"\n  👀 Please check the browser window.")
+                input(f"\n{Colors.DIM}Press Enter when done...{Colors.END}")
+            else:
+                current_apis = {sub["api_url"]: sub for sub in log["subscriptions"]}
+                
+                for sub in log["subscriptions"]:
+                    sub["status"] = "inactive"
+                    sub["last_checked"] = datetime.now().isoformat()
+                
+                for api in subscribed_apis:
+                    if api["url"] in current_apis:
+                        current_apis[api["url"]]["status"] = "active"
+                        current_apis[api["url"]]["last_checked"] = datetime.now().isoformat()
+                        current_apis[api["url"]]["api_name"] = api["name"]
+                    else:
+                        log["subscriptions"].append({
+                            "api_name": api["name"],
+                            "api_url": api["url"],
+                            "status": "active",
+                            "subscribed_at": datetime.now().isoformat(),
+                            "last_checked": datetime.now().isoformat(),
+                            "email": EMAIL
+                        })
+                
+                save_subscription_log(log)
+            
+            # Show summary
+            log = load_subscription_log()
+            active_count = sum(1 for sub in log["subscriptions"] if sub["status"] == "active")
+            inactive_count = sum(1 for sub in log["subscriptions"] if sub["status"] == "inactive")
+            total_count = len(log["subscriptions"])
+            
+            print(f"\n{Colors.GREEN}  📊 SUBSCRIPTION SUMMARY:{Colors.END}")
+            print(f"  ─────────────────────────────")
+            print(f"  {Colors.GREEN}✅ Active: {active_count}{Colors.END}")
+            print(f"  {Colors.YELLOW}⚠️ Inactive: {inactive_count}{Colors.END}")
+            print(f"  {Colors.CYAN}📊 Total: {total_count}{Colors.END}")
+            
+            if active_count > 0:
+                print(f"\n  {Colors.GREEN}Active APIs:{Colors.END}")
+                for sub in log["subscriptions"]:
+                    if sub["status"] == "active":
+                        print(f"    ✅ {sub['api_name']}")
+            
+            if inactive_count > 0:
+                print(f"\n  {Colors.YELLOW}Inactive APIs (Need to re-subscribe):{Colors.END}")
+                for sub in log["subscriptions"]:
+                    if sub["status"] == "inactive":
+                        print(f"    ⚠️ {sub['api_name']}")
+            
+            print(f"\n{Colors.CYAN}  💡 Browser will stay open for 30 seconds...{Colors.END}")
+            await page.wait_for_timeout(30000)
+            await context.close()
+            
+    except Exception as e:
+        print(f"{Colors.RED}  ❌ Verification error: {e}{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 📊 SHOW SUBSCRIPTION REPORT
+# ===================================================================
+def show_subscription_report():
+    log = load_subscription_log()
+    
+    print(f"\n{Colors.CYAN}  📊 SUBSCRIPTION REPORT{Colors.END}")
+    print(f"  {'═'*60}")
+    
+    if not log["subscriptions"]:
+        print(f"  {Colors.YELLOW}  No subscriptions found in log.{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    
+    total = len(log["subscriptions"])
+    active = sum(1 for sub in log["subscriptions"] if sub["status"] == "active")
+    inactive = sum(1 for sub in log["subscriptions"] if sub["status"] == "inactive")
+    
+    print(f"  📅 Last Run: {log.get('last_run', 'Never')}")
+    print(f"  📧 Email: {log['subscriptions'][0].get('email', 'N/A')}")
+    print(f"  {'─'*60}")
+    print(f"  {Colors.GREEN}✅ Active: {active}{Colors.END}")
+    print(f"  {Colors.YELLOW}⚠️ Inactive: {inactive}{Colors.END}")
+    print(f"  {Colors.CYAN}📊 Total: {total}{Colors.END}")
+    print(f"  {'─'*60}")
+    
+    # Show attempted APIs summary
+    if "attempted_apis" in log:
+        attempted = len(log["attempted_apis"])
+        successful = sum(1 for a in log["attempted_apis"] if a["status"] == "success")
+        no_free = sum(1 for a in log["attempted_apis"] if a["status"] == "no_free_plan")
+        failed = sum(1 for a in log["attempted_apis"] if "failed" in a["status"])
+        
+        print(f"\n  {Colors.CYAN}📊 ATTEMPT SUMMARY:{Colors.END}")
+        print(f"  {Colors.GREEN}✅ Successful: {successful}{Colors.END}")
+        print(f"  {Colors.YELLOW}⏭️ No Free Plan: {no_free}{Colors.END}")
+        print(f"  {Colors.RED}❌ Failed: {failed}{Colors.END}")
+        print(f"  {Colors.CYAN}📊 Total Attempted: {attempted}{Colors.END}")
+    
+    if active > 0:
+        print(f"\n  {Colors.GREEN}Active Subscriptions:{Colors.END}")
+        for sub in log["subscriptions"]:
+            if sub["status"] == "active":
+                print(f"    ✅ {sub['api_name'][:60]}")
+                print(f"       🔗 {sub['api_url'][:80]}...")
+                print(f"       📅 {sub.get('subscribed_at', 'N/A')[:19]}")
+                print()
+    
+    if inactive > 0:
+        print(f"\n  {Colors.YELLOW}Inactive/Expired Subscriptions:{Colors.END}")
+        for sub in log["subscriptions"]:
+            if sub["status"] == "inactive":
+                print(f"    ⚠️ {sub['api_name'][:60]}")
+                print(f"       🔗 {sub['api_url'][:80]}...")
+                print()
+    
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+# ===================================================================
+# 🚀 MAIN MENU
+# ===================================================================
+def main():
+    ensure_requirements()
+    clear = lambda: os.system('cls' if os.name == 'nt' else 'clear')
+    clear()
+    print(f"{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗")
+    print(f"║   🔒 ZYNTRASEC SECURITY - ALL API SUBSCRIBER                     ║")
+    print(f"║   Version: 7.0 - Complete Auto Subscribe + Verify               ║")
+    print(f"║   {Colors.END}")
+    print(f"╚══════════════════════════════════════════════════════════════╝{Colors.END}")
+    print(f"\n{Colors.CYAN}  📋 MENU:{Colors.END}")
+    print(f"  {Colors.GREEN}1{Colors.END} 🚀 Subscribe All APIs (Auto + Verify)")
+    print(f"  {Colors.GREEN}2{Colors.END} 📦 Install Requirements")
+    print(f"  {Colors.GREEN}3{Colors.END} 🚪 Exit")
+    print(f"  {Colors.YELLOW}4{Colors.END} 🔑 Change Email/Password")
+    print(f"  {Colors.YELLOW}5{Colors.END} 🧹 Clear Cache/Cookies")
+    print(f"  {Colors.YELLOW}6{Colors.END} 💾 Save Email ID (Multiple)")
+    print(f"  {Colors.YELLOW}7{Colors.END} 🔄 Select & Use Saved Email")
+    print(f"  {Colors.YELLOW}8{Colors.END} 📋 Show Emails")
+    print(f"  {Colors.YELLOW}9{Colors.END} 🗑️ Delete Emails")
+    print(f"  {Colors.CYAN}10{Colors.END} 🔍 Verify Subscriptions")
+    print(f"  {Colors.CYAN}11{Colors.END} 📊 Show Subscription Report")
+    
+    choice = input(f"\n{Colors.CYAN}  👉 Enter choice: {Colors.END}").strip()
+
+    if choice == '1':
+        asyncio.run(subscribe_all_apis())
+        main()
+    elif choice == '2':
+        install_requirements()
+        main()
+    elif choice == '3':
+        print(f"{Colors.GREEN}  👋 Exiting...{Colors.END}")
+        sys.exit(0)
+    elif choice == '4':
+        change_credentials()
+        main()
+    elif choice == '5':
+        clear_cache()
+        main()
+    elif choice == '6':
+        add_email()
+        main()
+    elif choice == '7':
+        select_email()
+        main()
+    elif choice == '8':
+        show_emails()
+        main()
+    elif choice == '9':
+        delete_email()
+        main()
+    elif choice == '10':
+        asyncio.run(verify_subscriptions())
+        main()
+    elif choice == '11':
+        show_subscription_report()
+        main()
+    else:
+        print(f"{Colors.RED}  ❌ Invalid choice.{Colors.END}")
+        main()
+
+if __name__ == "__main__":
+    main()

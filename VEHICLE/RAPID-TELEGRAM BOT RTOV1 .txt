@@ -1,0 +1,932 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+TELEGRAM RC LOOKUP BOT WITH SEARCH OPTIONS
+- Fixed Markdown parsing error
+- Plain text format
+"""
+
+import os
+import sys
+import subprocess
+import importlib
+import json
+import re
+import time
+import hashlib
+from datetime import datetime
+from typing import Dict, Any, Optional, List
+
+# ===================================================================
+# 📦 AUTO-INSTALL DEPENDENCIES
+# ===================================================================
+
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+        print(f"✅ Installed: {package}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install {package}: {e}")
+        return False
+
+def ensure_requirements():
+    required = ['requests', 'python-telegram-bot']
+    for pkg in required:
+        try:
+            importlib.import_module(pkg.replace('-', '_'))
+        except ImportError:
+            print(f"⚠️ {pkg} not found. Installing...")
+            install_package(pkg)
+
+ensure_requirements()
+
+# Now import
+import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+
+# ===================================================================
+# 🔒 SECURITY CONFIGURATION
+# ===================================================================
+
+BOT_TOKEN = "8810322116:AAHsij1Pb-aNiWDeZQKGiA31p8081XR16sc"
+
+ALLOWED_USERS = []
+
+LICENSE_KEY = "ZYNTRASEC@2026"
+LICENSE_FILE = "license.lic"
+EXPIRY_DATE = "2030-12-31"
+VERSION = "9.0.0 TELEGRAM-BOT"
+AUTHOR = "ZYNTRASEC Security"
+COPYRIGHT = "© 2026 ZYNTRASEC Security. All Rights Reserved."
+YEAR = "2026"
+
+# ===================================================================
+# 🔑 API KEYS MANAGEMENT
+# ====================================================================
+
+API_KEYS_FILE = "api_keys.json"
+
+DEFAULT_KEYS = {
+    "keys": {
+        "key1": "1bd3c6e057msh2516cfa56a8bb85p1d4a70jsn0f95190ddb2c",
+        "key2": "",
+        "key3": ""
+    },
+    "active": "key1",
+    "key_names": {
+        "key1": "Primary Key",
+        "key2": "Backup Key 1",
+        "key3": "Backup Key 2"
+    },
+    "last_updated": ""
+}
+
+def load_api_keys():
+    try:
+        if os.path.exists(API_KEYS_FILE):
+            with open(API_KEYS_FILE, 'r') as f:
+                data = json.load(f)
+                if 'keys' not in data:
+                    data['keys'] = {}
+                for k in ['key1', 'key2', 'key3']:
+                    if k not in data['keys']:
+                        data['keys'][k] = ""
+                if 'active' not in data:
+                    data['active'] = 'key1'
+                if 'key_names' not in data:
+                    data['key_names'] = {
+                        "key1": "Primary Key",
+                        "key2": "Backup Key 1",
+                        "key3": "Backup Key 2"
+                    }
+                return data
+    except:
+        pass
+    return DEFAULT_KEYS.copy()
+
+def save_api_keys(data):
+    try:
+        data['last_updated'] = datetime.now().isoformat()
+        with open(API_KEYS_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+        return True
+    except:
+        return False
+
+def get_active_key():
+    data = load_api_keys()
+    active = data.get('active', 'key1')
+    return data['keys'].get(active, "")
+
+def get_all_valid_keys():
+    data = load_api_keys()
+    keys = data.get('keys', {})
+    valid_keys = []
+    for key_id, key_value in keys.items():
+        if key_value and key_value.strip():
+            valid_keys.append((key_id, key_value))
+    return valid_keys
+
+def get_keys_with_status():
+    data = load_api_keys()
+    keys = data.get('keys', {})
+    active = data.get('active', 'key1')
+    names = data.get('key_names', {})
+    
+    result = {}
+    for key_id in ['key1', 'key2', 'key3']:
+        result[key_id] = {
+            'key': keys.get(key_id, ''),
+            'active': key_id == active,
+            'name': names.get(key_id, key_id)
+        }
+    return result, active
+
+def set_active_key(key_id):
+    data = load_api_keys()
+    if key_id in data['keys'] and data['keys'][key_id]:
+        data['active'] = key_id
+        save_api_keys(data)
+        return True
+    return False
+
+def update_key(key_id, new_key, name=None):
+    data = load_api_keys()
+    if key_id in data['keys']:
+        data['keys'][key_id] = new_key.strip()
+        if name:
+            if 'key_names' not in data:
+                data['key_names'] = {}
+            data['key_names'][key_id] = name
+        save_api_keys(data)
+        return True
+    return False
+
+# ===================================================================
+# 🌐 25 APIs
+# ===================================================================
+
+def get_apis_with_key(key):
+    return [
+        {"priority": 1, "name": "🏆 Vahan Official", "method": "GET", 
+         "url": "https://vahan-vehicle-details-api.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "vahan-vehicle-details-api.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 2, "name": "🥈 RC Verification", "method": "POST",
+         "url": "https://vehicle-rc-verification-rto.p.rapidapi.com/rc-full",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "vehicle-rc-verification-rto.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"id_number": None}},
+        {"priority": 3, "name": "🥉 rc_v2 India API", "method": "GET",
+         "url": "https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-information-india-api.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 4, "name": "4️⃣ Advance Verification", "method": "POST",
+         "url": "https://vehicle-rc-verification-advance.p.rapidapi.com/Getrcfulldetails",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "vehicle-rc-verification-advance.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"rcnumber": None}},
+        {"priority": 5, "name": "5️⃣ rc_v2 India 2", "method": "GET",
+         "url": "https://rto-vehicle-information-india2.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-information-india2.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 6, "name": "6️⃣ rc_v2 Mega", "method": "GET",
+         "url": "https://rto-vehicle-information-india-mega.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-information-india-mega.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 7, "name": "7️⃣ Info API", "method": "GET",
+         "url": "https://rto-vehicle-info-api.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-info-api.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 8, "name": "8️⃣ Details6", "method": "GET",
+         "url": "https://rto-vehicle-details6.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-details6.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 9, "name": "9️⃣ Indian Mega", "method": "GET",
+         "url": "https://indian-rto-vehicle-details-mega.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "indian-rto-vehicle-details-mega.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 10, "name": "🔟 Details API", "method": "GET",
+         "url": "https://rto-vehicle-details-api.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-details-api.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 11, "name": "1️⃣1️⃣ Details API1", "method": "GET",
+         "url": "https://rto-vehicle-details-api1.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-details-api1.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 12, "name": "1️⃣2️⃣ RC Details Mega", "method": "GET",
+         "url": "https://vehicle-rc-details-mega.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "vehicle-rc-details-mega.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 13, "name": "1️⃣3️⃣ RC Info Mega", "method": "GET",
+         "url": "https://vehicle-rc-information-mega.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "vehicle-rc-information-mega.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 14, "name": "1️⃣4️⃣ Mega1", "method": "GET",
+         "url": "https://vehicle-rc-information-mega1.p.rapidapi.com/rc_v2.php",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "vehicle-rc-information-mega1.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration_no": None}},
+        {"priority": 15, "name": "1️⃣5️⃣ Vehicle Details", "method": "POST",
+         "url": "https://rto-vehicle-details.p.rapidapi.com/api4",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-details.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"reg": None}},
+        {"priority": 16, "name": "1️⃣6️⃣ Pro Version", "method": "POST",
+         "url": "https://rto-vehicle-details-pro.p.rapidapi.com/api",
+         "headers": {"Content-Type": "application/json", "X-User-Email": "user@gmail.com", "x-rapidapi-host": "rto-vehicle-details-pro.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"reg": None}},
+        {"priority": 17, "name": "1️⃣7️⃣ Vehicle Challan", "method": "POST",
+         "url": "https://rto-vehicle-information-india.p.rapidapi.com/getVehicleChallan",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-information-india.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"vehicle_no": None, "consent": "Y", "consent_text": "I hereby give my consent"}},
+        {"priority": 18, "name": "1️⃣8️⃣ Challan Info", "method": "POST",
+         "url": "https://rto-challan-information-india.p.rapidapi.com/fetch_challan_info",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-challan-information-india.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"reg_no": None}},
+        {"priority": 19, "name": "1️⃣9️⃣ RC Search", "method": "GET",
+         "url": "https://rto-vehicle-details-rc-puc-insurance-mparivahan.p.rapidapi.com/api/rc-vehicle/search-data",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-details-rc-puc-insurance-mparivahan.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"vehicle_no": None}},
+        {"priority": 20, "name": "2️⃣0️⃣ Address API", "method": "GET",
+         "url": "https://rto-vehicle-details5.p.rapidapi.com/address",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-details5.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration": None}},
+        {"priority": 21, "name": "2️⃣1️⃣ Address API (Dup)", "method": "GET",
+         "url": "https://rto-vehicle-details5.p.rapidapi.com/address",
+         "headers": {"Content-Type": "application/json", "x-rapidapi-host": "rto-vehicle-details5.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registration": None}},
+        {"priority": 22, "name": "2️⃣2️⃣ Owner Details", "method": "GET",
+         "url": "https://vehicle-rc-owner-details-api-india-rto-data.p.rapidapi.com/api/rapidapi/rc-details2",
+         "headers": {"Content-Type": "application/json", "x-account-id": "{{accountId}}", "x-api-key": "{{apiKey}}", "x-rapidapi-host": "vehicle-rc-owner-details-api-india-rto-data.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"vehicleNumber": None, "warning": "I am ready to take risks and continue."}},
+        {"priority": 23, "name": "2️⃣3️⃣ Challan API", "method": "POST",
+         "url": "https://rto-challan-api.p.rapidapi.com/bus_api/public/api/v1/vaahan/searchChallanDetails",
+         "headers": {"Content-Type": "application/x-www-form-urlencoded", "x-rapidapi-host": "rto-challan-api.p.rapidapi.com", "x-rapidapi-key": key},
+         "params_mapping": {"registrationNo": None}, "is_form": True},
+        {"priority": 24, "name": "2️⃣4️⃣ Free API - Vehicle Info", "method": "GET",
+         "url": "https://vehicleinfobyterabaap.vercel.app/lookup",
+         "headers": {}, "params_mapping": {"rc": None}},
+        {"priority": 25, "name": "2️⃣5️⃣ Free API - RTO Search", "method": "GET",
+         "url": "https://www.rtosearch.in/api/get_details.php",
+         "headers": {}, "params_mapping": {"vehicle_no": None}}
+    ]
+
+# ===================================================================
+# 🔍 RC LOOKUP FUNCTIONS
+# ===================================================================
+
+def validate_indian_rc(rc: str) -> bool:
+    state_codes = [
+        "AP","AR","AS","BR","CG","GA","GJ","HR","HP","JK","JH",
+        "KA","KL","MP","MH","MN","ML","MZ","NL","OR","PB","RJ",
+        "SK","TN","TR","UP","WB","AN","CH","DN","DD","DL","LD",
+        "PY","TS","TG","LA"
+    ]
+    pattern = r'^(' + '|'.join(state_codes) + r')[-]?\d{1,2}[-]?[A-Z]{1,2}[-]?\d{4}$'
+    return re.match(pattern, rc) is not None
+
+def fetch_from_api(rc: str, api_config: Dict) -> Dict:
+    try:
+        params = {}
+        data = None
+        json_data = None
+
+        if api_config.get("params_mapping"):
+            for param_key, param_value in api_config["params_mapping"].items():
+                if param_value is None:
+                    params[param_key] = rc
+                else:
+                    params[param_key] = param_value
+
+        if api_config.get("is_form"):
+            data = params
+            params = {}
+
+        if api_config["method"] == "POST" and not api_config.get("is_form"):
+            json_data = params
+            params = {}
+
+        if api_config["method"] == "GET":
+            response = requests.get(
+                api_config["url"],
+                params=params,
+                headers=api_config.get("headers", {}),
+                timeout=15
+            )
+        elif api_config["method"] == "POST":
+            if api_config.get("is_form"):
+                response = requests.post(
+                    api_config["url"],
+                    data=data,
+                    headers=api_config.get("headers", {}),
+                    timeout=15
+                )
+            else:
+                response = requests.post(
+                    api_config["url"],
+                    json=json_data,
+                    headers=api_config.get("headers", {}),
+                    timeout=15
+                )
+        else:
+            return {"error": f"Unsupported method: {api_config['method']}"}
+
+        if response.status_code == 200:
+            try:
+                return response.json()
+            except:
+                return {"raw_text": response.text, "status": "non-json"}
+        return {"error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def try_with_all_keys(rc: str, api_config: Dict) -> Dict:
+    valid_keys = get_all_valid_keys()
+    if not valid_keys:
+        return {"error": "No API keys configured!"}
+    
+    for key_id, key_value in valid_keys:
+        api_copy = api_config.copy()
+        if 'headers' in api_copy and 'x-rapidapi-key' in api_copy['headers']:
+            api_copy['headers']['x-rapidapi-key'] = key_value
+        
+        result = fetch_from_api(rc, api_copy)
+        
+        if "error" not in result and len(result) > 0:
+            result['_key_used'] = key_id
+            return result
+    
+    return {"error": "All keys failed"}
+
+def lookup_rc_with_options(rc: str, mode: str = "auto", priority_range: str = "1-25") -> Dict:
+    rc = re.sub(r'[-]', '', rc).upper()
+    
+    valid_keys = get_all_valid_keys()
+    if not valid_keys:
+        return {"error": "No API keys configured!"}
+    
+    all_apis = get_apis_with_key(get_active_key())
+    selected_apis = []
+    
+    if mode == "auto":
+        selected_apis = all_apis
+    elif mode == "top5":
+        selected_apis = [api for api in all_apis if api.get('priority', 0) <= 5]
+    elif mode == "top10":
+        selected_apis = [api for api in all_apis if api.get('priority', 0) <= 10]
+    elif mode == "top15":
+        selected_apis = [api for api in all_apis if api.get('priority', 0) <= 15]
+    elif mode == "range":
+        try:
+            parts = priority_range.split('-')
+            start = int(parts[0])
+            end = int(parts[1])
+            selected_apis = [api for api in all_apis if start <= api.get('priority', 0) <= end]
+        except:
+            selected_apis = all_apis
+    elif mode == "single":
+        try:
+            p = int(priority_range)
+            selected_apis = [api for api in all_apis if api.get('priority', 0) == p]
+        except:
+            selected_apis = all_apis
+    else:
+        selected_apis = all_apis
+    
+    if not selected_apis:
+        return {"error": "No APIs selected for this mode!"}
+    
+    for api_config in selected_apis:
+        result = try_with_all_keys(rc, api_config)
+        
+        if "error" not in result and len(result) > 0:
+            key_used = result.pop('_key_used', 'unknown')
+            return {
+                "data": result,
+                "api": api_config.get('name', 'Unknown'),
+                "priority": api_config.get('priority', 0),
+                "key_used": key_used,
+                "total_apis": len(selected_apis)
+            }
+    
+    return {"error": f"All {len(selected_apis)} APIs failed!"}
+
+# ===================================================================
+# 🤖 FORMAT VEHICLE INFO - FIXED (Plain Text)
+# ===================================================================
+
+def format_vehicle_info(data: Dict, rc: str, api_name: str, priority: int, key_used: str = "", total_apis: int = 0) -> str:
+    """Format vehicle info - PLAIN TEXT (no Markdown)"""
+    
+    state = "Unknown"
+    if rc:
+        clean_rc = re.sub(r'[-]', '', rc)
+        state = clean_rc[:2].upper() if len(clean_rc) >= 2 else "Unknown"
+    
+    result = f"🚗 VEHICLE INFORMATION - {rc}\n"
+    result += f"📍 State: {state}\n"
+    result += f"📡 API: {api_name} (Priority #{priority})\n"
+    if total_apis:
+        result += f"📊 APIs Tried: {total_apis}\n"
+    if key_used:
+        result += f"🔑 Key Used: {key_used}\n"
+    result += "─" * 40 + "\n"
+    
+    if "error" in data:
+        result += f"❌ Error: {data['error']}"
+        return result
+    
+    field_labels = {
+        'owner_name': '👤 Owner Name', 'owner': '👤 Owner Name', 'name': '👤 Owner Name',
+        'father_name': '👨‍👦 Father Name', 'address': '📍 Address', 'city': '🏙️ City',
+        'state': '📍 State', 'state_name': '📍 State', 'country': '🌍 Country',
+        'phone': '📞 Phone Number', 'mobile': '📞 Phone Number', 'email': '📧 Email',
+        'rto': '🏢 RTO Office', 'registration_no': '📋 Registration No',
+        'vehicle_no': '📋 Registration No', 'rc_number': '📋 Registration No',
+        'registration_date': '📅 Registration Date', 'vehicle_class': '🚗 Vehicle Class',
+        'maker': '🏭 Maker', 'manufacturer': '🏭 Maker', 'model': '🔧 Model',
+        'fuel_type': '⛽ Fuel Type', 'engine_no': '🔢 Engine Number',
+        'chassis_no': '🔢 Chassis Number', 'insurance_company': '🛡️ Insurance Company',
+        'insurance_upto': '📆 Insurance Upto', 'puc_valid_upto': '📋 PUC Valid Upto',
+        'road_tax_upto': '💰 Road Tax Upto', 'registration_status': '📊 Registration Status',
+        'color': '🎨 Color', 'manufactured_year': '🏗️ Manufactured Year'
+    }
+    
+    displayed = 0
+    for key, label in field_labels.items():
+        if key in data and data[key]:
+            # Clean value - remove special characters that break formatting
+            value = str(data[key]).replace('*', '').replace('_', '').replace('`', '').replace('[', '').replace(']', '')
+            result += f"{label}: {value}\n"
+            displayed += 1
+    
+    if displayed == 0:
+        result += "📄 Raw Data:\n"
+        raw_json = json.dumps(data, indent=2, ensure_ascii=False)
+        if len(raw_json) > 500:
+            result += raw_json[:500] + "...\n(truncated)"
+        else:
+            result += raw_json
+    
+    result += "\n" + "─" * 40 + "\n"
+    result += f"🔒 {COPYRIGHT}"
+    
+    return result
+
+# ===================================================================
+# 🎯 SEARCH OPTIONS KEYBOARD
+# ===================================================================
+
+def get_search_options_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton("🚀 AUTO (All 25)", callback_data="mode_auto"),
+            InlineKeyboardButton("⭐ TOP 5", callback_data="mode_top5"),
+        ],
+        [
+            InlineKeyboardButton("🌟 TOP 10", callback_data="mode_top10"),
+            InlineKeyboardButton("💫 TOP 15", callback_data="mode_top15"),
+        ],
+        [
+            InlineKeyboardButton("🎯 RANGE (1-10)", callback_data="range_1-10"),
+            InlineKeyboardButton("🎯 RANGE (11-20)", callback_data="range_11-20"),
+        ],
+        [
+            InlineKeyboardButton("📌 SINGLE API", callback_data="mode_single"),
+        ],
+        [
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_api_list_keyboard():
+    keyboard = []
+    row = []
+    for api in get_apis_with_key(get_active_key())[:20]:  # Show first 20
+        p = api.get('priority', 0)
+        btn = InlineKeyboardButton(f"{p}", callback_data=f"api_{p}")
+        row.append(btn)
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_options")])
+    return InlineKeyboardMarkup(keyboard)
+
+# ===================================================================
+# 🎯 COMMAND HANDLERS
+# ===================================================================
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    welcome_msg = (
+        "🚗 RC LOOKUP BOT\n\n"
+        "Send me an Indian RC number or use /search to get options.\n\n"
+        "📝 Format: GJ05VC1234 or GJ-05-VC-1234\n\n"
+        "🔧 Commands:\n"
+        "/start - Show this message\n"
+        "/search - Choose search options\n"
+        "/help - Show help\n"
+        "/status - Bot status\n"
+        "/keys - API keys status"
+    )
+    await update.message.reply_text(welcome_msg)
+
+async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    msg = (
+        "🔍 Select Search Mode\n\n"
+        "Choose how you want to search:\n"
+        "🚀 AUTO - Try all 25 APIs\n"
+        "⭐ TOP 5 - Best 5 APIs only\n"
+        "🌟 TOP 10 - Best 10 APIs only\n"
+        "💫 TOP 15 - Best 15 APIs only\n"
+        "🎯 RANGE - Select priority range\n"
+        "📌 SINGLE - Select specific API\n\n"
+        "Then send your RC number."
+    )
+    
+    await update.message.reply_text(
+        msg, 
+        reply_markup=get_search_options_keyboard()
+    )
+
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    user_id = update.effective_user.id
+    
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await query.edit_message_text("❌ Unauthorized.")
+        return
+    
+    if data == "cancel":
+        await query.edit_message_text("❌ Cancelled. Send /search to try again.")
+        return
+    
+    if data == "back_to_options":
+        await query.edit_message_text(
+            "🔍 Select Search Mode\n\nThen send your RC number.",
+            reply_markup=get_search_options_keyboard()
+        )
+        return
+    
+    if data.startswith("mode_"):
+        mode = data.replace("mode_", "")
+        context.user_data['search_mode'] = mode
+        context.user_data['search_range'] = "1-25"
+        
+        mode_names = {
+            "auto": "🚀 AUTO (All 25 APIs)",
+            "top5": "⭐ TOP 5 (Best 5 APIs)",
+            "top10": "🌟 TOP 10 (Best 10 APIs)",
+            "top15": "💫 TOP 15 (Best 15 APIs)",
+            "single": "📌 SINGLE API (Select below)"
+        }
+        
+        msg = f"✅ Mode selected: {mode_names.get(mode, mode)}\n\n"
+        
+        if mode == "single":
+            msg += "👇 Select an API priority number:\n"
+            await query.edit_message_text(
+                msg,
+                reply_markup=get_api_list_keyboard()
+            )
+        else:
+            msg += "📝 Now send your RC number:"
+            await query.edit_message_text(msg)
+        
+        return
+    
+    if data.startswith("range_"):
+        range_val = data.replace("range_", "")
+        context.user_data['search_mode'] = "range"
+        context.user_data['search_range'] = range_val
+        
+        msg = f"✅ Range selected: {range_val}\n\n📝 Now send your RC number:"
+        await query.edit_message_text(msg)
+        return
+    
+    if data.startswith("api_"):
+        priority = data.replace("api_", "")
+        context.user_data['search_mode'] = "single"
+        context.user_data['search_range'] = priority
+        
+        msg = f"✅ API selected: Priority #{priority}\n\n📝 Now send your RC number:"
+        await query.edit_message_text(msg)
+        return
+
+async def handle_rc_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle RC lookup with selected mode - FIXED"""
+    user_id = update.effective_user.id
+    
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    rc = update.message.text.strip().upper()
+    
+    if rc.startswith('/'):
+        return
+    
+    mode = context.user_data.get('search_mode', 'auto')
+    range_val = context.user_data.get('search_range', '1-25')
+    
+    if not validate_indian_rc(rc):
+        await update.message.reply_text(
+            f"⚠️ Invalid RC Format\n\n"
+            f"'{rc}' is not valid.\n\n"
+            f"📝 Valid formats:\n"
+            f"GJ05VC1234 or GJ-05-VC-1234\n\n"
+            f"Send /search to try again."
+        )
+        return
+    
+    await update.message.chat.send_action(action="typing")
+    
+    mode_names = {
+        "auto": "🚀 AUTO (All 25)",
+        "top5": "⭐ TOP 5",
+        "top10": "🌟 TOP 10",
+        "top15": "💫 TOP 15",
+        "range": f"🎯 RANGE ({range_val})",
+        "single": f"📌 SINGLE API (#{range_val})"
+    }
+    
+    status_msg = f"🔍 Searching for {rc}\n📊 Mode: {mode_names.get(mode, mode)}\n⏳ Please wait..."
+    status = await update.message.reply_text(status_msg)
+    
+    result = lookup_rc_with_options(rc, mode, range_val)
+    
+    if "error" in result:
+        await status.edit_text(f"❌ Error: {result['error']}")
+        return
+    
+    data = result.get('data', {})
+    api_name = result.get('api', 'Unknown')
+    priority = result.get('priority', 0)
+    key_used = result.get('key_used', '')
+    total_apis = result.get('total_apis', 0)
+    
+    formatted = format_vehicle_info(data, rc, api_name, priority, key_used, total_apis)
+    
+    await status.delete()
+    
+    # Split if too long
+    if len(formatted) > 4000:
+        await update.message.reply_text(formatted[:4000])
+        await update.message.reply_text(formatted[4000:])
+    else:
+        await update.message.reply_text(formatted)
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_msg = (
+        "🔧 HELP\n\n"
+        "Commands:\n"
+        "/start - Start bot\n"
+        "/search - Choose search options\n"
+        "/status - Bot status\n"
+        "/keys - API keys status\n"
+        "/addkey key1 KEY - Add API key\n"
+        "/switchkey key2 - Switch active key\n"
+        "/testkeys - Test all keys\n\n"
+        "Search Modes:\n"
+        "🚀 AUTO - All 25 APIs\n"
+        "⭐ TOP 5 - Best 5 APIs\n"
+        "🌟 TOP 10 - Best 10 APIs\n"
+        "💫 TOP 15 - Best 15 APIs\n"
+        "🎯 RANGE - Priority range\n"
+        "📌 SINGLE - Specific API\n\n"
+        "📝 RC Format: GJ05VC1234"
+    )
+    await update.message.reply_text(help_msg)
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    keys_data, active = get_keys_with_status()
+    valid_count = sum(1 for k, v in keys_data.items() if v['key'])
+    active_info = keys_data.get(active, {})
+    active_key = active_info.get('key', '')
+    
+    status_msg = (
+        "📊 Bot Status\n\n"
+        f"🔑 Keys: {valid_count}/3 configured\n"
+        f"⭐ Active Key: {active}\n"
+    )
+    
+    if active_key:
+        masked = active_key[:8] + "..." + active_key[-4:] if len(active_key) > 12 else "****"
+        status_msg += f"   Key: {masked}\n"
+    
+    mode = context.user_data.get('search_mode', 'auto')
+    range_val = context.user_data.get('search_range', '1-25')
+    
+    mode_names = {
+        "auto": "🚀 AUTO",
+        "top5": "⭐ TOP 5",
+        "top10": "🌟 TOP 10",
+        "top15": "💫 TOP 15",
+        "range": f"🎯 RANGE ({range_val})",
+        "single": f"📌 SINGLE (#{range_val})"
+    }
+    
+    status_msg += f"\n📊 Current Mode: {mode_names.get(mode, mode)}\n"
+    status_msg += f"\n📡 APIs: 25 available\n"
+    status_msg += f"🔒 License: Valid\n"
+    status_msg += f"📅 Expiry: {EXPIRY_DATE}"
+    
+    await update.message.reply_text(status_msg)
+
+async def keys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    keys_data, active = get_keys_with_status()
+    
+    msg = "🔑 API Keys Status\n\n"
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        status = "⭐ ACTIVE" if key_id == active else "  "
+        
+        if key_value:
+            masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+            msg += f"{key_id}: {masked} {status}\n"
+            msg += f"   Name: {name}\n\n"
+        else:
+            msg += f"{key_id}: [EMPTY] {status}\n"
+            msg += f"   Name: {name}\n\n"
+    
+    msg += "Use /addkey to add a key\n"
+    msg += "Use /switchkey to switch active key"
+    
+    await update.message.reply_text(msg)
+
+async def addkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    args = context.args
+    if not args or len(args) < 2:
+        await update.message.reply_text(
+            "❌ Usage: /addkey key_id key_value\n\n"
+            "Example: /addkey key2 YOUR_API_KEY\n"
+            "Available: key1, key2, key3"
+        )
+        return
+    
+    key_id = args[0].lower()
+    key_value = args[1]
+    
+    if key_id not in ['key1', 'key2', 'key3']:
+        await update.message.reply_text("❌ Invalid key_id! Use key1, key2, or key3.")
+        return
+    
+    if update_key(key_id, key_value):
+        await update.message.reply_text(f"✅ Key {key_id} updated successfully!")
+    else:
+        await update.message.reply_text("❌ Failed to update key!")
+
+async def switchkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "❌ Usage: /switchkey key_id\n\n"
+            "Example: /switchkey key2\n"
+            "Available: key1, key2, key3"
+        )
+        return
+    
+    key_id = args[0].lower()
+    
+    if key_id not in ['key1', 'key2', 'key3']:
+        await update.message.reply_text("❌ Invalid key_id! Use key1, key2, or key3.")
+        return
+    
+    if set_active_key(key_id):
+        await update.message.reply_text(f"✅ Switched to {key_id}!")
+    else:
+        await update.message.reply_text(f"❌ Failed to switch to {key_id}. Key might be empty.")
+
+async def testkeys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    
+    await update.message.reply_text("🔄 Testing all keys... This may take a moment.")
+    
+    keys_data, active = get_keys_with_status()
+    results = []
+    
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        if not key_value:
+            results.append(f"{key_id}: ⚠️ EMPTY")
+            continue
+        
+        try:
+            test_url = "https://vahan-vehicle-details-api.p.rapidapi.com/rc_v2.php"
+            test_params = {"registration_no": "GJ05VC1234"}
+            headers = {
+                "x-rapidapi-host": "vahan-vehicle-details-api.p.rapidapi.com",
+                "x-rapidapi-key": key_value
+            }
+            response = requests.get(test_url, params=test_params, headers=headers, timeout=10)
+            
+            if response.status_code in [200, 404, 429]:
+                results.append(f"{key_id}: ✅ VALID ({response.status_code})")
+            else:
+                results.append(f"{key_id}: ❌ INVALID ({response.status_code})")
+        except Exception as e:
+            results.append(f"{key_id}: ❌ ERROR - {str(e)[:30]}")
+    
+    msg = "🧪 Key Test Results\n\n" + "\n".join(results)
+    await update.message.reply_text(msg)
+
+# ===================================================================
+# 🚀 MAIN
+# ===================================================================
+
+def main():
+    print(f"""
+    ╔═══════════════════════════════════════════════════╗
+    ║  🤖 ZYNTRASEC RC LOOKUP BOT                      ║
+    ║  📡 25 APIs with Auto-Fallback                   ║
+    ║  🎯 Multiple Search Modes                        ║
+    ║  {COPYRIGHT}                                      ║
+    ╚═══════════════════════════════════════════════════╝
+    """)
+    
+    if not os.path.exists(LICENSE_FILE):
+        print(f"⚠️ License not found. Creating...")
+        data = {
+            "key_hash": hashlib.sha256(LICENSE_KEY.encode()).hexdigest(),
+            "expiry": EXPIRY_DATE,
+            "mac": "00:00:00:00:00:00",
+            "generated": datetime.now().isoformat(),
+            "version": VERSION
+        }
+        with open(LICENSE_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+        print(f"✅ License file created: {LICENSE_FILE}")
+    
+    print(f"✅ License verified")
+    
+    keys_data, active = get_keys_with_status()
+    valid_count = sum(1 for k, v in keys_data.items() if v['key'])
+    print(f"🔑 Keys: {valid_count}/3 configured")
+    print(f"⭐ Active Key: {active}")
+    
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("search", search_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("keys", keys_command))
+    application.add_handler(CommandHandler("addkey", addkey_command))
+    application.add_handler(CommandHandler("switchkey", switchkey_command))
+    application.add_handler(CommandHandler("testkeys", testkeys_command))
+    
+    application.add_handler(CallbackQueryHandler(callback_handler))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_rc_lookup))
+    
+    print(f"\n🚀 Bot is running!")
+    print(f"📱 Commands:")
+    print(f"   /start - Start bot")
+    print(f"   /search - Choose search options")
+    print(f"   /help - Show help")
+    print(f"   /status - Bot status")
+    print(f"   /keys - API keys status")
+    print(f"\nPress Ctrl+C to stop...\n")
+    
+    application.run_polling()
+
+if __name__ == "__main__":
+    main()
