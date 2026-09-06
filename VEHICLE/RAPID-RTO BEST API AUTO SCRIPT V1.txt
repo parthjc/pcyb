@@ -64,7 +64,7 @@ API_KEYS_FILE = "api_keys.json"
 
 DEFAULT_KEYS = {
     "keys": {
-        "key1": "29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb",
+        "key1": "cc54872d5dmshee8d02a0f0e71f6p14936bjsn5d397631d9c2",
         "key2": "",
         "key3": ""
     },

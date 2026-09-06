@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZYNTRASEC SECURITY - Telegram RC Lookup Bot
+# ZYNTRASEC SECURITY - Telegram RC Lookup Bot (Updated)
 # Copyright © 2026 ZYNTRASEC Security. All Rights Reserved.
 
 import os
@@ -61,24 +61,20 @@ COPYRIGHT = "© 2026 ZYNTRASEC Security. All Rights Reserved."
 YEAR = "2026"
 
 # ===================================================================
-# 🔑 BOT CONFIGURATION
+# 🔑 BOT CONFIGURATION - UPDATED
 # ===================================================================
 
-BOT_TOKEN = "8810322116:AAHsij1Pb-aNiWDeZQKGiA31p8081XR16sc"
-
-# Conversation states
-WAITING_FOR_RC = 1
-WAITING_FOR_API_SELECTION = 2
+BOT_TOKEN = "8810322116:AAHO0YsOYSd-UvnDebWZxwaPYHciTFulZyQ"
 
 # ===================================================================
-# 🔑 MULTIPLE API KEYS MANAGEMENT
+# 🔑 API KEYS - UPDATED
 # ===================================================================
 
 API_KEYS_FILE = "api_keys.json"
 
 DEFAULT_KEYS = {
     "keys": {
-        "key1": "29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb",
+        "key1": "cc54872d5dmshee8d02a0f0e71f6p14936bjsn5d397631d9c2",
         "key2": "",
         "key3": ""
     },
@@ -91,8 +87,14 @@ DEFAULT_KEYS = {
     "last_updated": ""
 }
 
+# Conversation states
+WAITING_FOR_RC = 1
+WAITING_FOR_API_SELECTION = 2
+WAITING_FOR_RANGE = 3
+WAITING_FOR_MANUAL = 4
+
 # ===================================================================
-# 🔥 AUTO MODE - EXCLUDED APIS (Will be skipped in AUTO MODE)
+# 🔥 AUTO MODE - EXCLUDED APIS
 # ===================================================================
 
 AUTO_MODE_EXCLUDED_PRIORITIES = [1, 2, 3]
@@ -107,8 +109,6 @@ AUTO_MODE_EXCLUDED_NAMES = [
 # ===================================================================
 
 class RateLimitTracker:
-    """Track rate-limited APIs and auto-skip them in auto mode."""
-    
     def __init__(self):
         self.rate_limited_apis: Set[str] = set()
         self.rate_limited_urls: Set[str] = set()
@@ -268,21 +268,6 @@ def update_key(key_id, new_key, name=None):
         return True
     return False
 
-def remove_key(key_id):
-    data = load_api_keys()
-    if key_id in data['keys']:
-        data['keys'][key_id] = ""
-        if data.get('active') == key_id:
-            for k, v in data['keys'].items():
-                if v:
-                    data['active'] = k
-                    break
-            else:
-                data['active'] = 'key1'
-        save_api_keys(data)
-        return True
-    return False
-
 # ===================================================================
 # 🛡️ SECURITY FUNCTIONS
 # ===================================================================
@@ -369,7 +354,7 @@ def generate_license_file():
         json.dump(data, f, indent=4)
 
 # ===================================================================
-# 🔄 ENHANCED RETRY LOGIC
+# 🔄 RETRY LOGIC
 # ===================================================================
 
 def should_retry(status_code: int, error_text: str = "") -> bool:
@@ -1010,15 +995,34 @@ def rc_lookup_with_auto_retry(rc: str, api_config: Dict, is_auto_mode: bool = Fa
     
     return {"error": "All keys failed after retries"}
 
+def save_results(rc: str, data: Dict, raw: Dict, api_name: str, priority: int, key_used: str = "") -> str:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ZYNTRASEC_{rc}_{timestamp}.json"
+    data_to_save = {
+        "normalized": data,
+        "raw": raw,
+        "metadata": {
+            'tool': 'ZYNTRASEC Security Telegram Bot',
+            'version': VERSION,
+            'timestamp': datetime.now().isoformat(),
+            'rc_checked': rc,
+            'api_used': api_name,
+            'priority': priority,
+            'key_used': key_used,
+            'licensed_to': 'ZYNTRASEC SECURITY',
+            'expiry_date': EXPIRY_DATE,
+            'apis_total': len(WORKING_APIS)
+        }
+    }
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data_to_save, f, indent=4, ensure_ascii=False)
+    return filename
+
 # ===================================================================
 # 🤖 TELEGRAM BOT HANDLERS
 # ===================================================================
 
-# User sessions storage
-user_sessions = {}
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when /start is issued."""
     user = update.effective_user
     welcome_text = f"""
 🚗 *ZYNTRASEC SECURITY - RC Lookup Bot*
@@ -1045,7 +1049,6 @@ Use /lookup to start searching for vehicle details.
     await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when /help is issued."""
     help_text = f"""
 *📚 ZYNTRASEC RC Lookup Bot - Help*
 
@@ -1071,7 +1074,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 GJ05VC1234 or GJ-05-VC-1234
 
 *Supported States:*
-All Indian states including AP, AR, AS, BR, CG, GA, GJ, HR, HP, JK, JH, KA, KL, MP, MH, MN, ML, MZ, NL, OR, PB, RJ, SK, TN, TR, UP, WB, AN, CH, DN, DD, DL, LD, PY, TS, TG, LA
+AP, AR, AS, BR, CG, GA, GJ, HR, HP, JK, JH, KA, KL, MP, MH, MN, ML, MZ, NL, OR, PB, RJ, SK, TN, TR, UP, WB, AN, CH, DN, DD, DL, LD, PY, TS, TG, LA
 
 *Security:*
 🔒 All data is processed securely
@@ -1083,7 +1086,6 @@ All Indian states including AP, AR, AS, BR, CG, GA, GJ, HR, HP, JK, JH, KA, KL, 
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show security status."""
     status_text = f"""
 *🔒 Security Status*
 
@@ -1106,7 +1108,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(status_text, parse_mode='Markdown')
 
 async def apilist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show API priority list."""
     text = "*📊 API Priority List*\n\n"
     
     for api in WORKING_APIS:
@@ -1133,7 +1134,6 @@ async def apilist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(text, parse_mode='Markdown')
 
 async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Start RC lookup conversation."""
     await update.message.reply_text(
         "🔍 *Enter Indian RC Number*\n\n"
         "📝 Format: `GJ05VC1234` or `GJ-05-VC-1234`\n"
@@ -1144,14 +1144,12 @@ async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return WAITING_FOR_RC
 
 async def lookup_rc_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle RC number input."""
     rc = update.message.text.strip().upper()
     
     if rc == '/cancel':
         await update.message.reply_text("❌ *Operation cancelled.*", parse_mode='Markdown')
         return ConversationHandler.END
     
-    # Store RC in context
     context.user_data['rc'] = rc
     
     if not validate_indian_rc(rc):
@@ -1171,12 +1169,10 @@ async def lookup_rc_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return WAITING_FOR_API_SELECTION
     
-    # Show mode selection
     await show_mode_selection(update, context)
     return WAITING_FOR_API_SELECTION
 
 async def show_mode_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show API mode selection."""
     rc = context.user_data.get('rc', '')
     
     keyboard = [
@@ -1205,8 +1201,12 @@ Choose how you want to search:
 """
     await update.message.reply_text(message, parse_mode='Markdown', reply_markup=reply_markup)
 
+# ===================================================================
+# 🔄 CALLBACK HANDLERS
+# ===================================================================
+
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle button callbacks."""
+    """Handle button callbacks"""
     query = update.callback_query
     await query.answer()
     
@@ -1217,20 +1217,113 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     if data == "apilist":
-        await apilist_command(update, context)
+        text = "*📊 API Priority List*\n\n"
+        
+        for api in WORKING_APIS:
+            priority = api.get('priority', '?')
+            name = api.get('name', 'Unknown')
+            method = api.get('method', 'GET')
+            is_free = api.get('is_free', False)
+            free_tag = " 🆓" if is_free else ""
+            is_limited = rate_tracker.is_rate_limited(name, api.get('url', ''))
+            limited_tag = " 🚫" if is_limited else ""
+            is_excluded = is_excluded_from_auto_mode(api)
+            excluded_tag = " ⛔" if is_excluded else ""
+            
+            text += f"`{priority:>2}` │ *{method}* │ {name}{free_tag}{limited_tag}{excluded_tag}\n"
+        
+        text += f"\n📌 *Legend:*"
+        text += f"\n🟢 1-5: Best Priority"
+        text += f"\n🟦 6-10: Good Priority"
+        text += f"\n🟨 11-15: Medium Priority"
+        text += f"\n⬜ 16-20: Lower Priority / Free APIs"
+        text += f"\n🚫 Rate Limited (Auto-skipped for 60s)"
+        text += f"\n⛔ Excluded from AUTO MODE"
+        
+        await query.edit_message_text(text, parse_mode='Markdown')
         return
     
     if data == "security":
-        await status_command(update, context)
+        status_text = f"""
+*🔒 Security Status*
+
+📡 *APIs Available:* {len(WORKING_APIS)}
+🆓 *Free APIs:* {sum(1 for api in WORKING_APIS if api.get('is_free', False))}
+⛔ *Auto Mode Excluded:* Priority 1,2,3
+🚫 *Rate Limited APIs:* {rate_tracker.get_limited_count()}
+
+*License Information:*
+📄 License File: {'✅ Present' if os.path.exists(LICENSE_FILE) else '❌ Not found'}
+📅 Expiry Date: {EXPIRY_DATE}
+🔑 Active Key: {get_active_key_id()}
+
+*System Info:*
+🐍 Python Version: {sys.version.split()[0]}
+📦 Version: {VERSION}
+
+© {YEAR} ZYNTRASEC Security. All Rights Reserved.
+"""
+        await query.edit_message_text(status_text, parse_mode='Markdown')
         return
     
     if data == "help":
-        await help_command(update, context)
+        help_text = f"""
+*📚 ZYNTRASEC RC Lookup Bot - Help*
+
+*Commands:*
+/start - Show welcome menu
+/help - Show this help message
+/lookup - Start RC lookup
+/apilist - Show all APIs with priorities
+/status - Show security status
+/cancel - Cancel current operation
+
+*How to use:*
+1. Use /lookup to start
+2. Enter your RC number (e.g., GJ05VC1234)
+3. Choose lookup mode:
+   • Auto Mode - Skips Priority 1,2,3
+   • Manual Select - Choose specific API
+   • Range Select - Choose priority range
+   • Top 5 - Try top 5 priority APIs
+   • Free APIs - Try only free APIs
+
+*RC Format:*
+GJ05VC1234 or GJ-05-VC-1234
+
+© {YEAR} ZYNTRASEC Security. All Rights Reserved.
+"""
+        await query.edit_message_text(help_text, parse_mode='Markdown')
         return
     
     if data == "continue_anyway":
         context.user_data['force_continue'] = True
-        await show_mode_selection(update, context)
+        rc = context.user_data.get('rc', '')
+        keyboard = [
+            [InlineKeyboardButton("🔄 AUTO MODE - Skip 1,2,3", callback_data="mode_auto")],
+            [InlineKeyboardButton("🎯 MANUAL SELECT - Choose API", callback_data="mode_manual")],
+            [InlineKeyboardButton("📊 RANGE SELECT - Priority Range", callback_data="mode_range")],
+            [InlineKeyboardButton("⭐ TOP 5 ONLY - Best Priority", callback_data="mode_top5")],
+            [InlineKeyboardButton("🆓 FREE APIS ONLY", callback_data="mode_free")],
+            [InlineKeyboardButton("🔄 AUTO-KEY + RETRY", callback_data="mode_autokey")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        message = f"""
+*🚗 RC Lookup - Select Mode*
+
+RC Number: `{rc}`
+
+Choose how you want to search:
+• *Auto Mode* - Try all APIs (skips 1,2,3)
+• *Manual* - Choose specific API
+• *Range* - Choose priority range
+• *Top 5* - Only top 5 priority APIs
+• *Free APIs* - Only free APIs
+• *Auto-Key* - Try all keys with retry
+"""
+        await query.edit_message_text(message, parse_mode='Markdown', reply_markup=reply_markup)
         return
     
     if data == "cancel_lookup":
@@ -1240,22 +1333,104 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data.startswith("mode_"):
         mode = data.replace("mode_", "")
         context.user_data['mode'] = mode
-        await perform_lookup(update, context)
+        
+        # Handle different modes
+        if mode == "manual":
+            keyboard = []
+            for api in WORKING_APIS[:10]:
+                priority = api.get('priority', '?')
+                name = api.get('name', 'Unknown')
+                keyboard.append([InlineKeyboardButton(
+                    f"[{priority}] {name[:25]}...", 
+                    callback_data=f"select_api_{priority}"
+                )])
+            
+            keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "🎯 *Select an API by priority:*\n\n"
+                "Choose from the list below:",
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+            return
+        
+        elif mode == "range":
+            keyboard = [
+                [InlineKeyboardButton("1-5 (Best)", callback_data="range_1_5")],
+                [InlineKeyboardButton("6-10 (Good)", callback_data="range_6_10")],
+                [InlineKeyboardButton("11-15 (Medium)", callback_data="range_11_15")],
+                [InlineKeyboardButton("16-20 (Lower/Free)", callback_data="range_16_20")],
+                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "📊 *Select Priority Range:*\n\n"
+                "Choose a range of APIs to try:",
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+            return
+        
+        elif data.startswith("select_api_"):
+            priority_num = int(data.replace("select_api_", ""))
+            selected = None
+            for api in WORKING_APIS:
+                if api.get('priority') == priority_num:
+                    selected = api
+                    break
+            
+            if selected:
+                context.user_data['selected_api'] = selected
+                await query.edit_message_text(
+                    f"✅ *Selected API:* {selected['name']}\n\n"
+                    f"🔍 Searching for `{context.user_data.get('rc', '')}`...",
+                    parse_mode='Markdown'
+                )
+                # Perform lookup with selected API
+                await perform_lookup_with_api(update, context, [selected])
+            else:
+                await query.edit_message_text("❌ *API not found!*", parse_mode='Markdown')
+            return
+        
+        elif data.startswith("range_"):
+            range_parts = data.replace("range_", "").split("_")
+            start = int(range_parts[0])
+            end = int(range_parts[1])
+            
+            apis_to_try = []
+            for api in WORKING_APIS:
+                p = api.get('priority', 0)
+                if start <= p <= end:
+                    if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
+                        apis_to_try.append(api)
+            
+            if apis_to_try:
+                await query.edit_message_text(
+                    f"📊 *Selected {len(apis_to_try)} APIs* (Priority {start}-{end})\n\n"
+                    f"🔍 Searching for `{context.user_data.get('rc', '')}`...",
+                    parse_mode='Markdown'
+                )
+                await perform_lookup_with_api(update, context, apis_to_try)
+            else:
+                await query.edit_message_text(
+                    "❌ *No APIs available in this range!*",
+                    parse_mode='Markdown'
+                )
+            return
+        
+        else:
+            # Auto mode, top5, free, autokey
+            await perform_lookup(update, context)
 
 async def perform_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Perform the actual RC lookup."""
+    """Perform RC lookup with selected mode."""
     query = update.callback_query
     rc = context.user_data.get('rc', '')
     mode = context.user_data.get('mode', 'auto')
     
-    await query.edit_message_text(
-        f"🔍 *Searching for RC: {rc}*\n\n"
-        f"⏳ Please wait while I search across APIs...\n"
-        f"Mode: {mode.upper()}",
-        parse_mode='Markdown'
-    )
-    
-    # Determine which APIs to try
     apis_to_try = []
     use_multi_key = False
     is_auto_mode = False
@@ -1263,13 +1438,6 @@ async def perform_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if mode == 'auto':
         apis_to_try = WORKING_APIS
         is_auto_mode = True
-    elif mode == 'manual':
-        # Show manual selection
-        await show_manual_selection(update, context)
-        return
-    elif mode == 'range':
-        await show_range_selection(update, context)
-        return
     elif mode == 'top5':
         for api in WORKING_APIS:
             if api.get('priority', 0) <= 5:
@@ -1293,7 +1461,15 @@ async def perform_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
     
-    # Perform lookup
+    await perform_lookup_with_api(update, context, apis_to_try, use_multi_key, is_auto_mode)
+
+async def perform_lookup_with_api(update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                                   apis_to_try: List, use_multi_key: bool = False, 
+                                   is_auto_mode: bool = False) -> None:
+    """Perform lookup with specific APIs."""
+    query = update.callback_query
+    rc = context.user_data.get('rc', '')
+    
     data = None
     raw_data = None
     used_api = None
@@ -1316,7 +1492,6 @@ async def perform_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         api_name = api_config["name"]
         priority = api_config.get('priority', attempted)
         
-        # Update status
         try:
             await status_message.edit_text(
                 f"🔍 *Searching for {rc}*\n"
@@ -1383,11 +1558,9 @@ async def perform_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     service_unavailable_count += 1
     
     if data is not None:
-        # Format and send results
         result_text = format_vehicle_info(data, rc, used_api, used_priority, used_key)
         await status_message.edit_text(result_text, parse_mode='Markdown')
         
-        # Save results
         save_results(rc, data, raw_data if raw_data else {}, used_api, used_priority, used_key)
         
         await context.bot.send_message(
@@ -1407,47 +1580,7 @@ async def perform_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode='Markdown'
         )
 
-async def show_manual_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show manual API selection."""
-    keyboard = []
-    for api in WORKING_APIS[:10]:  # Show first 10 for brevity
-        priority = api.get('priority', '?')
-        name = api.get('name', 'Unknown')
-        keyboard.append([InlineKeyboardButton(
-            f"[{priority}] {name[:25]}...", 
-            callback_data=f"select_api_{priority}"
-        )])
-    
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.callback_query.edit_message_text(
-        "🎯 *Select an API by priority:*\n\n"
-        "Choose from the list below:",
-        parse_mode='Markdown',
-        reply_markup=reply_markup
-    )
-
-async def show_range_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show range selection."""
-    keyboard = [
-        [InlineKeyboardButton("1-5 (Best)", callback_data="range_1_5")],
-        [InlineKeyboardButton("6-10 (Good)", callback_data="range_6_10")],
-        [InlineKeyboardButton("11-15 (Medium)", callback_data="range_11_15")],
-        [InlineKeyboardButton("16-20 (Lower/Free)", callback_data="range_16_20")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.callback_query.edit_message_text(
-        "📊 *Select Priority Range:*\n\n"
-        "Choose a range of APIs to try:",
-        parse_mode='Markdown',
-        reply_markup=reply_markup
-    )
-
 def format_vehicle_info(data: Dict, rc: str, api_name: str, priority: int, key_used: str = "") -> str:
-    """Format vehicle information for Telegram."""
     state = "Unknown"
     if rc:
         clean_rc = re.sub(r'[-]', '', rc)
@@ -1511,7 +1644,6 @@ def format_vehicle_info(data: Dict, rc: str, api_name: str, priority: int, key_u
             text += f"\n{label}: `{display_value}`"
             displayed += 1
         elif not key.startswith('_'):
-            # Check if key is similar to any label
             for label_key, label_val in field_labels.items():
                 if label_key.lower() in key.lower() or key.lower() in label_key.lower():
                     display_value = value if value else 'N/A'
@@ -1528,37 +1660,11 @@ def format_vehicle_info(data: Dict, rc: str, api_name: str, priority: int, key_u
     
     return text
 
-def save_results(rc: str, data: Dict, raw: Dict, api_name: str, priority: int, key_used: str = "") -> str:
-    """Save results to file."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"ZYNTRASEC_{rc}_{timestamp}.json"
-    data_to_save = {
-        "normalized": data,
-        "raw": raw,
-        "metadata": {
-            'tool': 'ZYNTRASEC Security Telegram Bot',
-            'version': VERSION,
-            'timestamp': datetime.now().isoformat(),
-            'rc_checked': rc,
-            'api_used': api_name,
-            'priority': priority,
-            'key_used': key_used,
-            'licensed_to': 'ZYNTRASEC SECURITY',
-            'expiry_date': EXPIRY_DATE,
-            'apis_total': len(WORKING_APIS)
-        }
-    }
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data_to_save, f, indent=4, ensure_ascii=False)
-    return filename
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Cancel the conversation."""
     await update.message.reply_text("❌ *Operation cancelled.*", parse_mode='Markdown')
     return ConversationHandler.END
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle unknown commands."""
     await update.message.reply_text(
         "❌ *Unknown command.*\n\n"
         "Use /help to see all available commands.",
@@ -1574,9 +1680,9 @@ def main():
     auto_set_mac()
     
     if not verify_license_file():
-        print("⚠️ License not found. Please generate license file.")
-        print("Run: python script.py --generate-license")
+        print("⚠️ License not found. Generating license file...")
         generate_license_file()
+        print("✅ License file generated!")
     
     if not verify_date():
         print("❌ License expired!")
@@ -1584,8 +1690,8 @@ def main():
     
     print(f"🚗 ZYNTRASEC RC Lookup Bot v{VERSION}")
     print(f"📡 {len(WORKING_APIS)} APIs loaded")
+    print(f"🔑 API Key: {get_active_key()[:15]}...")
     print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
-    print("✅ Bot starting...")
     
     # Create application
     application = Application.builder().token(BOT_TOKEN).build()
@@ -1605,6 +1711,7 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True,
     )
     
     # Add handlers
@@ -1617,7 +1724,16 @@ def main():
     
     # Start bot
     print("🤖 Bot is running... Press Ctrl+C to stop.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    try:
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True
+        )
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        print("💡 Make sure only one instance of the bot is running.")
+        print("💡 Try: pkill -f 'python3.*rtobot.py'")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--generate-license":
