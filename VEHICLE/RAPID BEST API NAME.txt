@@ -1,0 +1,133 @@
+N02.curl --request POST \
+	--url https://rto-vehicle-information-india.p.rapidapi.com/getVehicleInfo \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-information-india.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb' \
+	--data '{"vehicle_no":"GJ19BC4041","consent":"Y","consent_text":"I hereby give my consent for Eccentric Labs API to fetch my information"}'
+
+
+N05.curl --request POST \
+	--url https://rto-challan-information-india.p.rapidapi.com/fetch_challan_info \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-challan-information-india.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb' \
+	--data '{"reg_no":"GJ19BC4041"}'
+
+
+N012.curl --request GET \
+	--url 'https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php?registration_no=MH02FB2727' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-information-india-api.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+NO13curl --request GET \
+	--url 'https://rto-vehicle-information-india3.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-information-india3.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+
+N014.curl --request GET \
+	--url 'https://rto-vehicle-information-india2.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-information-india2.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N016.curl --request GET \
+	--url 'https://rto-vehicle-information-india-mega.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-information-india-mega.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N0.17curl --request GET \
+	--url 'https://rto-vehicle-info-api.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-info-api.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+
+N018.curl --request GET \
+	--url 'https://rto-vehicle-details6.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-details6.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+NO19.curl --request GET \
+	--url 'https://indian-rto-vehicle-details-mega.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: indian-rto-vehicle-details-mega.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N022.curl --request GET \
+	--url 'https://rto-vehicle-details-api.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-details-api.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+N024BEST2.curl --request GET \
+	--url 'https://rto-vehicle-details5.p.rapidapi.com/address?registration=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-details5.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N025.curl --request GET \
+	--url 'https://rto-vehicle-details-api1.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: rto-vehicle-details-api1.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N027.curl --request GET \
+	--url 'https://vehicle-rc-details-mega.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: vehicle-rc-details-mega.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N028.curl --request GET \
+	--url 'https://vehicle-rc-information-mega.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: vehicle-rc-information-mega.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N029BEST1.curl --request POST \
+	--url https://vehicle-rc-verification-advance.p.rapidapi.com/Getrcfulldetails \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: vehicle-rc-verification-advance.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb' \
+	--data '{"rcnumber":"GJ19BC4041"}'
+
+
+N030.curl --request GET \
+	--url 'https://vehicle-rc-information-mega1.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: vehicle-rc-information-mega1.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+N031.curl --request GET \
+	--url 'https://vahan-vehicle-details-api.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: vahan-vehicle-details-api.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+N032.curl --request GET \
+	--url 'https://vehicle-rc-details-mega-api.p.rapidapi.com/rc_v2.php?registration_no=GJ19BC4041' \
+	--header 'Content-Type: application/json' \
+	--header 'x-rapidapi-host: vehicle-rc-details-mega-api.p.rapidapi.com' \
+	--header 'x-rapidapi-key: 29e2eadaf2msh3e523c2f4dda4b6p12a62fjsncd0b2b4e3efb'
+
+
+
+
+FREE API_BASE = "https://vehicleinfobyterabaap.vercel.app/lookup"
+
