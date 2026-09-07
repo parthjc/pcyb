@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZYNTRASEC SECURITY - Telegram RC Lookup Bot (Updated)
+# ZYNTRASEC SECURITY - Telegram Bot for RC Lookup
 # Copyright © 2026 ZYNTRASEC Security. All Rights Reserved.
 
 import os
@@ -9,9 +9,10 @@ import importlib
 import time
 import random
 import logging
+import threading
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Set
-from threading import Thread
+from queue import Queue
 
 # ===================================================================
 # 📦 AUTO-INSTALL DEPENDENCIES
@@ -30,7 +31,10 @@ def ensure_requirements():
     required = ['requests', 'beautifulsoup4', 'lxml', 'python-telegram-bot==20.7']
     for pkg in required:
         try:
-            importlib.import_module(pkg.replace('-', '_').replace('==', '.').split('.')[0])
+            if pkg == 'python-telegram-bot==20.7':
+                importlib.import_module('telegram')
+            else:
+                importlib.import_module(pkg.replace('-', '_'))
         except ImportError:
             print(f"⚠️ {pkg} not found. Installing...")
             install_package(pkg)
@@ -45,7 +49,7 @@ import hashlib
 import uuid
 from bs4 import BeautifulSoup
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # ===================================================================
 # 🔒 SECURITY CONFIGURATION
@@ -55,19 +59,30 @@ LICENSE_KEY = "ZYNTRASEC@2026"
 ALLOWED_MAC = ""
 EXPIRY_DATE = "2030-12-31"
 LICENSE_FILE = "license.lic"
-VERSION = "9.6.0 AUTO-FILTER"
+VERSION = "10.0.0 TELEGRAM-BOT"
 AUTHOR = "ZYNTRASEC Security"
 COPYRIGHT = "© 2026 ZYNTRASEC Security. All Rights Reserved."
 YEAR = "2026"
 
 # ===================================================================
-# 🔑 BOT CONFIGURATION - UPDATED
+# 🤖 TELEGRAM BOT CONFIGURATION
 # ===================================================================
 
+# 🔥 YOUR BOT TOKEN
 BOT_TOKEN = "8810322116:AAHO0YsOYSd-UvnDebWZxwaPYHciTFulZyQ"
 
+# 🔥 Allowed users (empty = allow all)
+ALLOWED_USERS = []  # Example: [123456789, 987654321]
+
+# Bot settings
+BOT_USERNAME = "ZYNTRASEC_RC_Bot"
+BOT_OWNER = "ZYNTRASEC Security"
+
+# Maximum concurrent requests
+MAX_CONCURRENT = 3
+
 # ===================================================================
-# 🔑 API KEYS - UPDATED
+# 🔑 MULTIPLE API KEYS MANAGEMENT
 # ===================================================================
 
 API_KEYS_FILE = "api_keys.json"
@@ -87,21 +102,17 @@ DEFAULT_KEYS = {
     "last_updated": ""
 }
 
-# Conversation states
-WAITING_FOR_RC = 1
-WAITING_FOR_API_SELECTION = 2
-WAITING_FOR_RANGE = 3
-WAITING_FOR_MANUAL = 4
-
 # ===================================================================
 # 🔥 AUTO MODE - EXCLUDED APIS
 # ===================================================================
 
-AUTO_MODE_EXCLUDED_PRIORITIES = [1, 2, 3]
+AUTO_MODE_EXCLUDED_PRIORITIES = [1, 2, 3, 5]
+
 AUTO_MODE_EXCLUDED_NAMES = [
     "🏆 N029BEST1 - Advance RC Verification",
     "🥈 N024BEST2 - RTO Address Details",
-    "🥉 N031 - Vahan Official"
+    "🥉 N031 - Vahan Official",
+    "5️⃣ N05 - Challan Info"
 ]
 
 # ===================================================================
@@ -147,12 +158,6 @@ class RateLimitTracker:
         self.rate_limited_apis.clear()
         self.rate_limited_urls.clear()
         self.rate_limit_cooldown.clear()
-    
-    def get_limited_count(self) -> int:
-        return len(self.rate_limited_urls)
-    
-    def get_limited_list(self) -> List[str]:
-        return list(self.rate_limited_apis)
 
 rate_tracker = RateLimitTracker()
 
@@ -172,8 +177,22 @@ RETRY_CONFIG = {
     "switch_key_on_429": True,
     "switch_api_on_503": False,
     "auto_skip_429": True,
-    "skip_cooldown_seconds": 60,
 }
+
+# ===================================================================
+# 🎨 COLORS (For console output)
+# ===================================================================
+
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
 
 # ===================================================================
 # 🔑 API KEY MANAGEMENT FUNCTIONS
@@ -224,21 +243,6 @@ def get_key_name(key_id):
     data = load_api_keys()
     return data.get('key_names', {}).get(key_id, key_id)
 
-def get_all_keys_with_status():
-    data = load_api_keys()
-    keys = data.get('keys', {})
-    active = data.get('active', 'key1')
-    names = data.get('key_names', {})
-    
-    result = {}
-    for key_id in ['key1', 'key2', 'key3']:
-        result[key_id] = {
-            'key': keys.get(key_id, ''),
-            'active': key_id == active,
-            'name': names.get(key_id, key_id)
-        }
-    return result, active
-
 def get_all_valid_keys():
     data = load_api_keys()
     keys = data.get('keys', {})
@@ -268,8 +272,21 @@ def update_key(key_id, new_key, name=None):
         return True
     return False
 
+def is_excluded_from_auto_mode(api_config: Dict) -> bool:
+    priority = api_config.get('priority', 0)
+    name = api_config.get('name', '')
+    
+    if priority in AUTO_MODE_EXCLUDED_PRIORITIES:
+        return True
+    
+    for excluded_name in AUTO_MODE_EXCLUDED_NAMES:
+        if excluded_name in name:
+            return True
+    
+    return False
+
 # ===================================================================
-# 🛡️ SECURITY FUNCTIONS
+# 📝 SECURITY FUNCTIONS
 # ===================================================================
 
 def get_mac_address():
@@ -331,14 +348,6 @@ def verify_license_file():
     except:
         return False
 
-def verify_date():
-    try:
-        current = datetime.now().date()
-        expiry = datetime.strptime(EXPIRY_DATE, "%Y-%m-%d").date()
-        return current <= expiry
-    except:
-        return True
-
 def generate_license_file():
     if not ALLOWED_MAC:
         auto_set_mac()
@@ -352,299 +361,10 @@ def generate_license_file():
     }
     with open(LICENSE_FILE, "w") as f:
         json.dump(data, f, indent=4)
+    print(f"{Colors.GREEN}  ✅ License file generated: {LICENSE_FILE}{Colors.END}")
 
 # ===================================================================
-# 🔄 RETRY LOGIC
-# ===================================================================
-
-def should_retry(status_code: int, error_text: str = "") -> bool:
-    retry_codes = RETRY_CONFIG["retry_status_codes"]
-    
-    if status_code in retry_codes:
-        return True
-    
-    rate_limit_keywords = ['rate limit', 'too many', 'quota', 'exceeded', '429']
-    if any(keyword in error_text.lower() for keyword in rate_limit_keywords):
-        return True
-    
-    service_keywords = ['service unavailable', '503', 'gateway', 'timeout']
-    if any(keyword in error_text.lower() for keyword in service_keywords):
-        return True
-    
-    return False
-
-def calculate_backoff(attempt: int) -> float:
-    base_delay = RETRY_CONFIG["base_delay"]
-    max_delay = RETRY_CONFIG["max_delay"]
-    backoff_factor = RETRY_CONFIG["backoff_factor"]
-    jitter = RETRY_CONFIG["jitter"]
-    
-    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
-    
-    if jitter:
-        jitter_amount = delay * 0.3
-        delay = delay + random.uniform(-jitter_amount, jitter_amount)
-    
-    return max(0.5, delay)
-
-def rotate_api_key():
-    valid_keys = get_all_valid_keys()
-    current_active = get_active_key_id()
-    
-    if len(valid_keys) <= 1:
-        return False
-    
-    current_index = -1
-    for i, (key_id, _) in enumerate(valid_keys):
-        if key_id == current_active:
-            current_index = i
-            break
-    
-    next_index = (current_index + 1) % len(valid_keys)
-    next_key_id = valid_keys[next_index][0]
-    
-    if set_active_key(next_key_id):
-        global RAPIDAPI_KEY
-        RAPIDAPI_KEY = get_active_key()
-        update_api_headers()
-        return True
-    
-    return False
-
-def is_excluded_from_auto_mode(api_config: Dict) -> bool:
-    priority = api_config.get('priority', 0)
-    name = api_config.get('name', '')
-    
-    if priority in AUTO_MODE_EXCLUDED_PRIORITIES:
-        return True
-    
-    for excluded_name in AUTO_MODE_EXCLUDED_NAMES:
-        if excluded_name in name:
-            return True
-    
-    return False
-
-def fetch_with_retry(rc: str, api_config: Dict, max_retries: int = None, is_auto_mode: bool = False) -> Dict:
-    api_name = api_config.get("name", "Unknown")
-    api_url = api_config.get("url", "")
-    
-    if is_auto_mode and is_excluded_from_auto_mode(api_config):
-        return {"error": "Excluded from AUTO MODE", "skipped": True}
-    
-    if max_retries is None:
-        max_retries = RETRY_CONFIG["max_retries"]
-    
-    if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
-        if rate_tracker.is_rate_limited(api_name, api_url):
-            return {"error": "Rate limited - auto-skipped", "skipped": True}
-    
-    attempt = 0
-    last_error = None
-    original_retries = max_retries
-    
-    while attempt < max_retries:
-        try:
-            params = {}
-            data = None
-            json_data = None
-            
-            if api_config.get("params_mapping"):
-                for param_key, param_value in api_config["params_mapping"].items():
-                    if param_value is None:
-                        params[param_key] = rc
-                    else:
-                        params[param_key] = param_value
-            
-            if api_config.get("is_form"):
-                data = params
-                params = {}
-            
-            if api_config["method"] == "POST" and not api_config.get("is_form"):
-                json_data = params
-                params = {}
-            
-            timeout = 15 + (attempt * 2)
-            
-            headers = api_config.get("headers", {}).copy()
-            if 'User-Agent' not in headers:
-                headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            
-            if api_config["method"] == "GET":
-                response = requests.get(
-                    api_config["url"],
-                    params=params,
-                    headers=headers,
-                    timeout=timeout
-                )
-            elif api_config["method"] == "POST":
-                if api_config.get("is_form"):
-                    response = requests.post(
-                        api_config["url"],
-                        data=data,
-                        headers=headers,
-                        timeout=timeout
-                    )
-                else:
-                    response = requests.post(
-                        api_config["url"],
-                        json=json_data,
-                        headers=headers,
-                        timeout=timeout
-                    )
-            else:
-                return {"error": f"Unsupported method: {api_config['method']}"}
-            
-            if response.status_code == 503:
-                if attempt >= RETRY_CONFIG["max_503_retries"]:
-                    return {"error": f"HTTP 503 - Service Unavailable (max retries)", "status_code": 503}
-                
-                delay = calculate_backoff(attempt)
-                time.sleep(delay)
-                attempt += 1
-                continue
-            
-            if response.status_code == 429:
-                if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
-                    rate_tracker.mark_rate_limited(api_name, api_url)
-                    return {"error": f"HTTP 429 - Rate Limited (Auto-skipped)", "skipped": True}
-                
-                if RETRY_CONFIG["switch_key_on_429"]:
-                    if rotate_api_key():
-                        attempt += 1
-                        continue
-                
-                delay = calculate_backoff(attempt)
-                time.sleep(delay)
-                attempt += 1
-                continue
-            
-            if should_retry(response.status_code, response.text):
-                if response.status_code in RETRY_CONFIG["retry_status_codes"]:
-                    delay = calculate_backoff(attempt)
-                    time.sleep(delay)
-                    attempt += 1
-                    continue
-                
-                return {"error": f"HTTP {response.status_code}"}
-            
-            if response.status_code == 200:
-                if rate_tracker.is_rate_limited(api_name, api_url):
-                    rate_tracker.remove_from_rate_limit(api_url)
-                
-                try:
-                    return response.json()
-                except:
-                    return {"raw_text": response.text, "status": "html"}
-            
-            return {"error": f"HTTP {response.status_code}"}
-            
-        except requests.exceptions.Timeout:
-            delay = calculate_backoff(attempt)
-            time.sleep(delay)
-            attempt += 1
-            last_error = "Timeout"
-            
-        except requests.exceptions.ConnectionError:
-            delay = calculate_backoff(attempt)
-            time.sleep(delay)
-            attempt += 1
-            last_error = "Connection Error"
-            
-        except Exception as e:
-            error_msg = str(e)
-            
-            if "rate limit" in error_msg.lower() or "too many" in error_msg.lower():
-                if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
-                    rate_tracker.mark_rate_limited(api_name, api_url)
-                    return {"error": f"Rate Limited - {error_msg}", "skipped": True}
-                
-                if RETRY_CONFIG["switch_key_on_429"]:
-                    if rotate_api_key():
-                        attempt += 1
-                        continue
-            
-            delay = calculate_backoff(attempt)
-            time.sleep(delay)
-            attempt += 1
-            last_error = error_msg
-    
-    return {"error": f"Max retries ({original_retries}) exceeded. Last error: {last_error}"}
-
-# ===================================================================
-# 📝 FREE API HTML PARSERS
-# ===================================================================
-
-def parse_rtosearch_html(html_text: str) -> Dict:
-    try:
-        soup = BeautifulSoup(html_text, 'html.parser')
-        result = {}
-        
-        patterns = {
-            'owner_name': ['Owner Name', 'Owner', 'Name'],
-            'registration_no': ['Registration No', 'Vehicle No', 'RC Number'],
-            'registration_date': ['Registration Date', 'Reg Date'],
-            'vehicle_class': ['Vehicle Class', 'Class'],
-            'maker': ['Maker', 'Manufacturer', 'Make'],
-            'model': ['Model'],
-            'fuel_type': ['Fuel Type', 'Fuel'],
-            'engine_no': ['Engine No', 'Engine Number'],
-            'chassis_no': ['Chassis No', 'Chassis Number'],
-            'insurance_company': ['Insurance Company', 'Insurance'],
-            'insurance_upto': ['Insurance Upto', 'Insurance Valid'],
-            'color': ['Color'],
-            'manufactured_year': ['Manufactured Year', 'Year']
-        }
-        
-        text = soup.get_text()
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        
-        for i, line in enumerate(lines):
-            for field, keywords in patterns.items():
-                for keyword in keywords:
-                    if keyword.lower() in line.lower():
-                        if ':' in line:
-                            parts = line.split(':', 1)
-                            if len(parts) == 2:
-                                result[field] = parts[1].strip()
-                        elif i + 1 < len(lines):
-                            result[field] = lines[i + 1].strip()
-                        break
-        
-        tables = soup.find_all('table')
-        for table in tables:
-            rows = table.find_all('tr')
-            for row in rows:
-                cells = row.find_all(['td', 'th'])
-                if len(cells) >= 2:
-                    key = cells[0].get_text().strip()
-                    value = cells[1].get_text().strip()
-                    for field, keywords in patterns.items():
-                        for keyword in keywords:
-                            if keyword.lower() in key.lower():
-                                result[field] = value
-                                break
-        
-        return result
-    except Exception as e:
-        return {"error": f"Parse error: {str(e)}"}
-
-def fetch_from_free_api(rc: str, api_config: Dict, is_auto_mode: bool = False) -> Dict:
-    result = fetch_with_retry(rc, api_config, is_auto_mode=is_auto_mode)
-    
-    if "raw_text" in result and result.get("status") == "html":
-        html_text = result["raw_text"]
-        
-        if "rtosearch" in api_config["url"]:
-            parsed = parse_rtosearch_html(html_text)
-            if parsed and not parsed.get("error"):
-                return parsed
-        
-        return {"raw_text": html_text, "status": "html_parsed"}
-    
-    return result
-
-# ===================================================================
-# 🚀 ALL WORKING APIS
+# 🌐 RC LOOKUP ENGINE
 # ===================================================================
 
 RAPIDAPI_KEY = get_active_key()
@@ -902,18 +622,308 @@ def update_api_headers():
             api['headers']['x-rapidapi-key'] = RAPIDAPI_KEY
 
 # ===================================================================
-# 🛠️ UTILITY FUNCTIONS
+# 🔄 FETCH ENGINE
 # ===================================================================
 
-def validate_indian_rc(rc: str) -> bool:
-    state_codes = [
-        "AP","AR","AS","BR","CG","GA","GJ","HR","HP","JK","JH",
-        "KA","KL","MP","MH","MN","ML","MZ","NL","OR","PB","RJ",
-        "SK","TN","TR","UP","WB","AN","CH","DN","DD","DL","LD",
-        "PY","TS","TG","LA"
-    ]
-    pattern = r'^(' + '|'.join(state_codes) + r')[-]?\d{1,2}[-]?[A-Z]{1,2}[-]?\d{4}$'
-    return re.match(pattern, rc) is not None
+def should_retry(status_code: int, error_text: str = "") -> bool:
+    retry_codes = RETRY_CONFIG["retry_status_codes"]
+    
+    if status_code in retry_codes:
+        return True
+    
+    rate_limit_keywords = ['rate limit', 'too many', 'quota', 'exceeded', '429']
+    if any(keyword in error_text.lower() for keyword in rate_limit_keywords):
+        return True
+    
+    service_keywords = ['service unavailable', '503', 'gateway', 'timeout']
+    if any(keyword in error_text.lower() for keyword in service_keywords):
+        return True
+    
+    return False
+
+def calculate_backoff(attempt: int) -> float:
+    base_delay = RETRY_CONFIG["base_delay"]
+    max_delay = RETRY_CONFIG["max_delay"]
+    backoff_factor = RETRY_CONFIG["backoff_factor"]
+    jitter = RETRY_CONFIG["jitter"]
+    
+    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+    
+    if jitter:
+        jitter_amount = delay * 0.3
+        delay = delay + random.uniform(-jitter_amount, jitter_amount)
+    
+    return max(0.5, delay)
+
+def rotate_api_key():
+    valid_keys = get_all_valid_keys()
+    current_active = get_active_key_id()
+    
+    if len(valid_keys) <= 1:
+        return False
+    
+    current_index = -1
+    for i, (key_id, _) in enumerate(valid_keys):
+        if key_id == current_active:
+            current_index = i
+            break
+    
+    next_index = (current_index + 1) % len(valid_keys)
+    next_key_id = valid_keys[next_index][0]
+    
+    if set_active_key(next_key_id):
+        global RAPIDAPI_KEY
+        RAPIDAPI_KEY = get_active_key()
+        update_api_headers()
+        return True
+    
+    return False
+
+def fetch_with_retry(rc: str, api_config: Dict, max_retries: int = None, is_auto_mode: bool = False) -> Dict:
+    api_name = api_config.get("name", "Unknown")
+    api_url = api_config.get("url", "")
+    
+    if is_auto_mode and is_excluded_from_auto_mode(api_config):
+        return {"error": "Excluded from AUTO MODE", "skipped": True}
+    
+    if max_retries is None:
+        max_retries = RETRY_CONFIG["max_retries"]
+    
+    if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
+        if rate_tracker.is_rate_limited(api_name, api_url):
+            return {"error": "Rate limited - auto-skipped", "skipped": True}
+    
+    attempt = 0
+    last_error = None
+    original_retries = max_retries
+    
+    while attempt < max_retries:
+        try:
+            params = {}
+            data = None
+            json_data = None
+            
+            if api_config.get("params_mapping"):
+                for param_key, param_value in api_config["params_mapping"].items():
+                    if param_value is None:
+                        params[param_key] = rc
+                    else:
+                        params[param_key] = param_value
+            
+            if api_config.get("is_form"):
+                data = params
+                params = {}
+            
+            if api_config["method"] == "POST" and not api_config.get("is_form"):
+                json_data = params
+                params = {}
+            
+            timeout = 15 + (attempt * 2)
+            
+            headers = api_config.get("headers", {}).copy()
+            if 'User-Agent' not in headers:
+                headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            
+            if api_config["method"] == "GET":
+                response = requests.get(
+                    api_config["url"],
+                    params=params,
+                    headers=headers,
+                    timeout=timeout
+                )
+            elif api_config["method"] == "POST":
+                if api_config.get("is_form"):
+                    response = requests.post(
+                        api_config["url"],
+                        data=data,
+                        headers=headers,
+                        timeout=timeout
+                    )
+                else:
+                    response = requests.post(
+                        api_config["url"],
+                        json=json_data,
+                        headers=headers,
+                        timeout=timeout
+                    )
+            else:
+                return {"error": f"Unsupported method: {api_config['method']}"}
+            
+            if response.status_code == 503:
+                if attempt >= RETRY_CONFIG["max_503_retries"]:
+                    return {"error": f"HTTP 503 - Service Unavailable (max retries)", "status_code": 503}
+                
+                delay = calculate_backoff(attempt)
+                time.sleep(delay)
+                attempt += 1
+                continue
+            
+            if response.status_code == 429:
+                if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
+                    rate_tracker.mark_rate_limited(api_name, api_url)
+                    return {"error": f"HTTP 429 - Rate Limited (Auto-skipped)", "skipped": True}
+                
+                if RETRY_CONFIG["switch_key_on_429"]:
+                    if rotate_api_key():
+                        attempt += 1
+                        continue
+                
+                delay = calculate_backoff(attempt)
+                time.sleep(delay)
+                attempt += 1
+                continue
+            
+            if should_retry(response.status_code, response.text):
+                if response.status_code in RETRY_CONFIG["retry_status_codes"]:
+                    delay = calculate_backoff(attempt)
+                    time.sleep(delay)
+                    attempt += 1
+                    continue
+                
+                return {"error": f"HTTP {response.status_code}"}
+            
+            if response.status_code == 200:
+                if rate_tracker.is_rate_limited(api_name, api_url):
+                    rate_tracker.remove_from_rate_limit(api_url)
+                
+                try:
+                    return response.json()
+                except:
+                    return {"raw_text": response.text, "status": "html"}
+            
+            return {"error": f"HTTP {response.status_code}"}
+            
+        except requests.exceptions.Timeout:
+            delay = calculate_backoff(attempt)
+            time.sleep(delay)
+            attempt += 1
+            last_error = "Timeout"
+            
+        except requests.exceptions.ConnectionError:
+            delay = calculate_backoff(attempt)
+            time.sleep(delay)
+            attempt += 1
+            last_error = "Connection Error"
+            
+        except Exception as e:
+            error_msg = str(e)
+            
+            if "rate limit" in error_msg.lower() or "too many" in error_msg.lower():
+                if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
+                    rate_tracker.mark_rate_limited(api_name, api_url)
+                    return {"error": f"Rate Limited - {error_msg}", "skipped": True}
+                
+                if RETRY_CONFIG["switch_key_on_429"]:
+                    if rotate_api_key():
+                        attempt += 1
+                        continue
+            
+            delay = calculate_backoff(attempt)
+            time.sleep(delay)
+            attempt += 1
+            last_error = error_msg
+    
+    return {"error": f"Max retries ({original_retries}) exceeded. Last error: {last_error}"}
+
+def parse_rtosearch_html(html_text: str) -> Dict:
+    try:
+        soup = BeautifulSoup(html_text, 'html.parser')
+        result = {}
+        
+        patterns = {
+            'owner_name': ['Owner Name', 'Owner', 'Name'],
+            'registration_no': ['Registration No', 'Vehicle No', 'RC Number'],
+            'registration_date': ['Registration Date', 'Reg Date'],
+            'vehicle_class': ['Vehicle Class', 'Class'],
+            'maker': ['Maker', 'Manufacturer', 'Make'],
+            'model': ['Model'],
+            'fuel_type': ['Fuel Type', 'Fuel'],
+            'engine_no': ['Engine No', 'Engine Number'],
+            'chassis_no': ['Chassis No', 'Chassis Number'],
+            'insurance_company': ['Insurance Company', 'Insurance'],
+            'insurance_upto': ['Insurance Upto', 'Insurance Valid'],
+            'color': ['Color'],
+            'manufactured_year': ['Manufactured Year', 'Year']
+        }
+        
+        text = soup.get_text()
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        for i, line in enumerate(lines):
+            for field, keywords in patterns.items():
+                for keyword in keywords:
+                    if keyword.lower() in line.lower():
+                        if ':' in line:
+                            parts = line.split(':', 1)
+                            if len(parts) == 2:
+                                result[field] = parts[1].strip()
+                        elif i + 1 < len(lines):
+                            result[field] = lines[i + 1].strip()
+                        break
+        
+        tables = soup.find_all('table')
+        for table in tables:
+            rows = table.find_all('tr')
+            for row in rows:
+                cells = row.find_all(['td', 'th'])
+                if len(cells) >= 2:
+                    key = cells[0].get_text().strip()
+                    value = cells[1].get_text().strip()
+                    for field, keywords in patterns.items():
+                        for keyword in keywords:
+                            if keyword.lower() in key.lower():
+                                result[field] = value
+                                break
+        
+        return result
+    except Exception as e:
+        return {"error": f"Parse error: {str(e)}"}
+
+def fetch_from_free_api(rc: str, api_config: Dict, is_auto_mode: bool = False) -> Dict:
+    result = fetch_with_retry(rc, api_config, is_auto_mode=is_auto_mode)
+    
+    if "raw_text" in result and result.get("status") == "html":
+        html_text = result["raw_text"]
+        
+        if "rtosearch" in api_config["url"]:
+            parsed = parse_rtosearch_html(html_text)
+            if parsed and not parsed.get("error"):
+                return parsed
+        
+        return {"raw_text": html_text, "status": "html_parsed"}
+    
+    return result
+
+def rc_lookup(rc: str) -> Dict:
+    """Main RC lookup function for bot."""
+    rate_tracker.reset_all()
+    
+    apis_to_try = []
+    for api in WORKING_APIS:
+        if is_excluded_from_auto_mode(api):
+            continue
+        apis_to_try.append(api)
+    
+    for api_config in apis_to_try:
+        api_name = api_config["name"]
+        priority = api_config.get('priority', 0)
+        is_free = api_config.get('is_free', False)
+        
+        if is_free:
+            result = fetch_from_free_api(rc, api_config, is_auto_mode=True)
+        else:
+            result = fetch_with_retry(rc, api_config, is_auto_mode=True)
+        
+        if "error" not in result and len(result) > 0 and "skipped" not in result:
+            result['_api_used'] = api_name
+            result['_priority'] = priority
+            return result
+    
+    return {"error": "All APIs failed after retries"}
+
+# ===================================================================
+# 📊 DATA FORMATTING
+# ===================================================================
 
 def flatten_dict(obj: Any, parent_key: str = '', sep: str = '_') -> Dict:
     items = []
@@ -946,659 +956,26 @@ def normalize_data(raw_data: Dict) -> Dict:
     normalized['_raw'] = raw_data
     return normalized
 
-def rc_lookup_with_auto_retry(rc: str, api_config: Dict, is_auto_mode: bool = False) -> Dict:
-    valid_keys = get_all_valid_keys()
-    
-    if not valid_keys:
-        return {"error": "No API keys configured!"}
-    
-    active_key_id = get_active_key_id()
-    
-    ordered_keys = []
-    for key_id, key_value in valid_keys:
-        if key_id == active_key_id:
-            ordered_keys.insert(0, (key_id, key_value))
-        else:
-            ordered_keys.append((key_id, key_value))
-    
-    for key_index, (key_id, key_value) in enumerate(ordered_keys):
-        global RAPIDAPI_KEY
-        current_key = RAPIDAPI_KEY
-        RAPIDAPI_KEY = key_value
-        
-        if 'headers' in api_config and 'x-rapidapi-key' in api_config['headers']:
-            api_config['headers']['x-rapidapi-key'] = key_value
-        
-        result = fetch_with_retry(rc, api_config, is_auto_mode=is_auto_mode)
-        
-        RAPIDAPI_KEY = current_key
-        if 'headers' in api_config and 'x-rapidapi-key' in api_config['headers']:
-            api_config['headers']['x-rapidapi-key'] = current_key
-        
-        if "error" not in result or "status" in result:
-            if "skipped" not in result:
-                result['_key_used'] = key_id
-            return result
-        
-        error_msg = result.get("error", "Unknown error")
-        
-        if result.get("skipped", False):
-            return result
-        
-        if any(keyword in error_msg.lower() for keyword in ['429', 'rate limit', 'too many', 'quota']):
-            continue
-        
-        if any(keyword in error_msg.lower() for keyword in ['503', 'service unavailable']):
-            continue
-        
-        continue
-    
-    return {"error": "All keys failed after retries"}
-
-def save_results(rc: str, data: Dict, raw: Dict, api_name: str, priority: int, key_used: str = "") -> str:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"ZYNTRASEC_{rc}_{timestamp}.json"
-    data_to_save = {
-        "normalized": data,
-        "raw": raw,
-        "metadata": {
-            'tool': 'ZYNTRASEC Security Telegram Bot',
-            'version': VERSION,
-            'timestamp': datetime.now().isoformat(),
-            'rc_checked': rc,
-            'api_used': api_name,
-            'priority': priority,
-            'key_used': key_used,
-            'licensed_to': 'ZYNTRASEC SECURITY',
-            'expiry_date': EXPIRY_DATE,
-            'apis_total': len(WORKING_APIS)
-        }
-    }
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data_to_save, f, indent=4, ensure_ascii=False)
-    return filename
-
-# ===================================================================
-# 🤖 TELEGRAM BOT HANDLERS
-# ===================================================================
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    welcome_text = f"""
-🚗 *ZYNTRASEC SECURITY - RC Lookup Bot*
-
-🔒 *Version:* {VERSION}
-📡 *APIs Loaded:* {len(WORKING_APIS)}
-🆓 *Free APIs:* {sum(1 for api in WORKING_APIS if api.get('is_free', False))}
-⛔ *Auto Mode Skips:* Priority 1,2,3
-
-*Welcome {user.first_name}!*
-
-Use /help to see all available commands.
-Use /lookup to start searching for vehicle details.
-
-© {YEAR} ZYNTRASEC Security. All Rights Reserved.
-"""
-    keyboard = [
-        [InlineKeyboardButton("🔍 RC Lookup", callback_data="lookup")],
-        [InlineKeyboardButton("📊 API Priority List", callback_data="apilist")],
-        [InlineKeyboardButton("🔐 Security Status", callback_data="security")],
-        [InlineKeyboardButton("ℹ️ Help", callback_data="help")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    help_text = f"""
-*📚 ZYNTRASEC RC Lookup Bot - Help*
-
-*Commands:*
-/start - Show welcome menu
-/help - Show this help message
-/lookup - Start RC lookup
-/apilist - Show all APIs with priorities
-/status - Show security status
-/cancel - Cancel current operation
-
-*How to use:*
-1. Use /lookup to start
-2. Enter your RC number (e.g., GJ05VC1234)
-3. Choose lookup mode:
-   • Auto Mode - Skips Priority 1,2,3
-   • Manual Select - Choose specific API
-   • Range Select - Choose priority range
-   • Top 5 - Try top 5 priority APIs
-   • Free APIs - Try only free APIs
-
-*RC Format:*
-GJ05VC1234 or GJ-05-VC-1234
-
-*Supported States:*
-AP, AR, AS, BR, CG, GA, GJ, HR, HP, JK, JH, KA, KL, MP, MH, MN, ML, MZ, NL, OR, PB, RJ, SK, TN, TR, UP, WB, AN, CH, DN, DD, DL, LD, PY, TS, TG, LA
-
-*Security:*
-🔒 All data is processed securely
-📁 Results are saved locally on the server
-🔑 API keys are encrypted
-
-© {YEAR} ZYNTRASEC Security. All Rights Reserved.
-"""
-    await update.message.reply_text(help_text, parse_mode='Markdown')
-
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    status_text = f"""
-*🔒 Security Status*
-
-📡 *APIs Available:* {len(WORKING_APIS)}
-🆓 *Free APIs:* {sum(1 for api in WORKING_APIS if api.get('is_free', False))}
-⛔ *Auto Mode Excluded:* Priority 1,2,3
-🚫 *Rate Limited APIs:* {rate_tracker.get_limited_count()}
-
-*License Information:*
-📄 License File: {'✅ Present' if os.path.exists(LICENSE_FILE) else '❌ Not found'}
-📅 Expiry Date: {EXPIRY_DATE}
-🔑 Active Key: {get_active_key_id()}
-
-*System Info:*
-🐍 Python Version: {sys.version.split()[0]}
-📦 Version: {VERSION}
-
-© {YEAR} ZYNTRASEC Security. All Rights Reserved.
-"""
-    await update.message.reply_text(status_text, parse_mode='Markdown')
-
-async def apilist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = "*📊 API Priority List*\n\n"
-    
-    for api in WORKING_APIS:
-        priority = api.get('priority', '?')
-        name = api.get('name', 'Unknown')
-        method = api.get('method', 'GET')
-        is_free = api.get('is_free', False)
-        free_tag = " 🆓" if is_free else ""
-        is_limited = rate_tracker.is_rate_limited(name, api.get('url', ''))
-        limited_tag = " 🚫" if is_limited else ""
-        is_excluded = is_excluded_from_auto_mode(api)
-        excluded_tag = " ⛔" if is_excluded else ""
-        
-        text += f"`{priority:>2}` │ *{method}* │ {name}{free_tag}{limited_tag}{excluded_tag}\n"
-    
-    text += f"\n📌 *Legend:*"
-    text += f"\n🟢 1-5: Best Priority"
-    text += f"\n🟦 6-10: Good Priority"
-    text += f"\n🟨 11-15: Medium Priority"
-    text += f"\n⬜ 16-20: Lower Priority / Free APIs"
-    text += f"\n🚫 Rate Limited (Auto-skipped for 60s)"
-    text += f"\n⛔ Excluded from AUTO MODE"
-    
-    await update.message.reply_text(text, parse_mode='Markdown')
-
-async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "🔍 *Enter Indian RC Number*\n\n"
-        "📝 Format: `GJ05VC1234` or `GJ-05-VC-1234`\n"
-        "💡 Type /cancel to cancel\n\n"
-        "Example: `GJ05VC1234`",
-        parse_mode='Markdown'
-    )
-    return WAITING_FOR_RC
-
-async def lookup_rc_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    rc = update.message.text.strip().upper()
-    
-    if rc == '/cancel':
-        await update.message.reply_text("❌ *Operation cancelled.*", parse_mode='Markdown')
-        return ConversationHandler.END
-    
-    context.user_data['rc'] = rc
-    
-    if not validate_indian_rc(rc):
-        keyboard = [
-            [InlineKeyboardButton("✅ Continue Anyway", callback_data="continue_anyway")],
-            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            f"⚠️ *Not a valid Indian RC format*\n\n"
-            f"RC entered: `{rc}`\n\n"
-            f"Standard format: `GJ05VC1234`\n"
-            f"State codes: AP, GJ, MH, TN, UP, etc.\n\n"
-            f"Do you want to continue anyway?",
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-        return WAITING_FOR_API_SELECTION
-    
-    await show_mode_selection(update, context)
-    return WAITING_FOR_API_SELECTION
-
-async def show_mode_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    rc = context.user_data.get('rc', '')
-    
-    keyboard = [
-        [InlineKeyboardButton("🔄 AUTO MODE - Skip 1,2,3", callback_data="mode_auto")],
-        [InlineKeyboardButton("🎯 MANUAL SELECT - Choose API", callback_data="mode_manual")],
-        [InlineKeyboardButton("📊 RANGE SELECT - Priority Range", callback_data="mode_range")],
-        [InlineKeyboardButton("⭐ TOP 5 ONLY - Best Priority", callback_data="mode_top5")],
-        [InlineKeyboardButton("🆓 FREE APIS ONLY", callback_data="mode_free")],
-        [InlineKeyboardButton("🔄 AUTO-KEY + RETRY", callback_data="mode_autokey")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    message = f"""
-*🚗 RC Lookup - Select Mode*
-
-RC Number: `{rc}`
-
-Choose how you want to search:
-• *Auto Mode* - Try all APIs (skips 1,2,3)
-• *Manual* - Choose specific API
-• *Range* - Choose priority range
-• *Top 5* - Only top 5 priority APIs
-• *Free APIs* - Only free APIs
-• *Auto-Key* - Try all keys with retry
-"""
-    await update.message.reply_text(message, parse_mode='Markdown', reply_markup=reply_markup)
-
-# ===================================================================
-# 🔄 CALLBACK HANDLERS
-# ===================================================================
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle button callbacks"""
-    query = update.callback_query
-    await query.answer()
-    
-    data = query.data
-    
-    if data == "lookup":
-        await query.edit_message_text("🔍 Please type /lookup to start")
-        return
-    
-    if data == "apilist":
-        text = "*📊 API Priority List*\n\n"
-        
-        for api in WORKING_APIS:
-            priority = api.get('priority', '?')
-            name = api.get('name', 'Unknown')
-            method = api.get('method', 'GET')
-            is_free = api.get('is_free', False)
-            free_tag = " 🆓" if is_free else ""
-            is_limited = rate_tracker.is_rate_limited(name, api.get('url', ''))
-            limited_tag = " 🚫" if is_limited else ""
-            is_excluded = is_excluded_from_auto_mode(api)
-            excluded_tag = " ⛔" if is_excluded else ""
-            
-            text += f"`{priority:>2}` │ *{method}* │ {name}{free_tag}{limited_tag}{excluded_tag}\n"
-        
-        text += f"\n📌 *Legend:*"
-        text += f"\n🟢 1-5: Best Priority"
-        text += f"\n🟦 6-10: Good Priority"
-        text += f"\n🟨 11-15: Medium Priority"
-        text += f"\n⬜ 16-20: Lower Priority / Free APIs"
-        text += f"\n🚫 Rate Limited (Auto-skipped for 60s)"
-        text += f"\n⛔ Excluded from AUTO MODE"
-        
-        await query.edit_message_text(text, parse_mode='Markdown')
-        return
-    
-    if data == "security":
-        status_text = f"""
-*🔒 Security Status*
-
-📡 *APIs Available:* {len(WORKING_APIS)}
-🆓 *Free APIs:* {sum(1 for api in WORKING_APIS if api.get('is_free', False))}
-⛔ *Auto Mode Excluded:* Priority 1,2,3
-🚫 *Rate Limited APIs:* {rate_tracker.get_limited_count()}
-
-*License Information:*
-📄 License File: {'✅ Present' if os.path.exists(LICENSE_FILE) else '❌ Not found'}
-📅 Expiry Date: {EXPIRY_DATE}
-🔑 Active Key: {get_active_key_id()}
-
-*System Info:*
-🐍 Python Version: {sys.version.split()[0]}
-📦 Version: {VERSION}
-
-© {YEAR} ZYNTRASEC Security. All Rights Reserved.
-"""
-        await query.edit_message_text(status_text, parse_mode='Markdown')
-        return
-    
-    if data == "help":
-        help_text = f"""
-*📚 ZYNTRASEC RC Lookup Bot - Help*
-
-*Commands:*
-/start - Show welcome menu
-/help - Show this help message
-/lookup - Start RC lookup
-/apilist - Show all APIs with priorities
-/status - Show security status
-/cancel - Cancel current operation
-
-*How to use:*
-1. Use /lookup to start
-2. Enter your RC number (e.g., GJ05VC1234)
-3. Choose lookup mode:
-   • Auto Mode - Skips Priority 1,2,3
-   • Manual Select - Choose specific API
-   • Range Select - Choose priority range
-   • Top 5 - Try top 5 priority APIs
-   • Free APIs - Try only free APIs
-
-*RC Format:*
-GJ05VC1234 or GJ-05-VC-1234
-
-© {YEAR} ZYNTRASEC Security. All Rights Reserved.
-"""
-        await query.edit_message_text(help_text, parse_mode='Markdown')
-        return
-    
-    if data == "continue_anyway":
-        context.user_data['force_continue'] = True
-        rc = context.user_data.get('rc', '')
-        keyboard = [
-            [InlineKeyboardButton("🔄 AUTO MODE - Skip 1,2,3", callback_data="mode_auto")],
-            [InlineKeyboardButton("🎯 MANUAL SELECT - Choose API", callback_data="mode_manual")],
-            [InlineKeyboardButton("📊 RANGE SELECT - Priority Range", callback_data="mode_range")],
-            [InlineKeyboardButton("⭐ TOP 5 ONLY - Best Priority", callback_data="mode_top5")],
-            [InlineKeyboardButton("🆓 FREE APIS ONLY", callback_data="mode_free")],
-            [InlineKeyboardButton("🔄 AUTO-KEY + RETRY", callback_data="mode_autokey")],
-            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        message = f"""
-*🚗 RC Lookup - Select Mode*
-
-RC Number: `{rc}`
-
-Choose how you want to search:
-• *Auto Mode* - Try all APIs (skips 1,2,3)
-• *Manual* - Choose specific API
-• *Range* - Choose priority range
-• *Top 5* - Only top 5 priority APIs
-• *Free APIs* - Only free APIs
-• *Auto-Key* - Try all keys with retry
-"""
-        await query.edit_message_text(message, parse_mode='Markdown', reply_markup=reply_markup)
-        return
-    
-    if data == "cancel_lookup":
-        await query.edit_message_text("❌ *Lookup cancelled.*", parse_mode='Markdown')
-        return
-    
-    if data.startswith("mode_"):
-        mode = data.replace("mode_", "")
-        context.user_data['mode'] = mode
-        
-        # Handle different modes
-        if mode == "manual":
-            keyboard = []
-            for api in WORKING_APIS[:10]:
-                priority = api.get('priority', '?')
-                name = api.get('name', 'Unknown')
-                keyboard.append([InlineKeyboardButton(
-                    f"[{priority}] {name[:25]}...", 
-                    callback_data=f"select_api_{priority}"
-                )])
-            
-            keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(
-                "🎯 *Select an API by priority:*\n\n"
-                "Choose from the list below:",
-                parse_mode='Markdown',
-                reply_markup=reply_markup
-            )
-            return
-        
-        elif mode == "range":
-            keyboard = [
-                [InlineKeyboardButton("1-5 (Best)", callback_data="range_1_5")],
-                [InlineKeyboardButton("6-10 (Good)", callback_data="range_6_10")],
-                [InlineKeyboardButton("11-15 (Medium)", callback_data="range_11_15")],
-                [InlineKeyboardButton("16-20 (Lower/Free)", callback_data="range_16_20")],
-                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_lookup")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(
-                "📊 *Select Priority Range:*\n\n"
-                "Choose a range of APIs to try:",
-                parse_mode='Markdown',
-                reply_markup=reply_markup
-            )
-            return
-        
-        elif data.startswith("select_api_"):
-            priority_num = int(data.replace("select_api_", ""))
-            selected = None
-            for api in WORKING_APIS:
-                if api.get('priority') == priority_num:
-                    selected = api
-                    break
-            
-            if selected:
-                context.user_data['selected_api'] = selected
-                await query.edit_message_text(
-                    f"✅ *Selected API:* {selected['name']}\n\n"
-                    f"🔍 Searching for `{context.user_data.get('rc', '')}`...",
-                    parse_mode='Markdown'
-                )
-                # Perform lookup with selected API
-                await perform_lookup_with_api(update, context, [selected])
-            else:
-                await query.edit_message_text("❌ *API not found!*", parse_mode='Markdown')
-            return
-        
-        elif data.startswith("range_"):
-            range_parts = data.replace("range_", "").split("_")
-            start = int(range_parts[0])
-            end = int(range_parts[1])
-            
-            apis_to_try = []
-            for api in WORKING_APIS:
-                p = api.get('priority', 0)
-                if start <= p <= end:
-                    if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
-                        apis_to_try.append(api)
-            
-            if apis_to_try:
-                await query.edit_message_text(
-                    f"📊 *Selected {len(apis_to_try)} APIs* (Priority {start}-{end})\n\n"
-                    f"🔍 Searching for `{context.user_data.get('rc', '')}`...",
-                    parse_mode='Markdown'
-                )
-                await perform_lookup_with_api(update, context, apis_to_try)
-            else:
-                await query.edit_message_text(
-                    "❌ *No APIs available in this range!*",
-                    parse_mode='Markdown'
-                )
-            return
-        
-        else:
-            # Auto mode, top5, free, autokey
-            await perform_lookup(update, context)
-
-async def perform_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Perform RC lookup with selected mode."""
-    query = update.callback_query
-    rc = context.user_data.get('rc', '')
-    mode = context.user_data.get('mode', 'auto')
-    
-    apis_to_try = []
-    use_multi_key = False
-    is_auto_mode = False
-    
-    if mode == 'auto':
-        apis_to_try = WORKING_APIS
-        is_auto_mode = True
-    elif mode == 'top5':
-        for api in WORKING_APIS:
-            if api.get('priority', 0) <= 5:
-                if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
-                    apis_to_try.append(api)
-    elif mode == 'free':
-        for api in WORKING_APIS:
-            if api.get('is_free', False):
-                if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
-                    apis_to_try.append(api)
-    elif mode == 'autokey':
-        apis_to_try = WORKING_APIS
-        use_multi_key = True
-    
-    if not apis_to_try:
-        await query.edit_message_text(
-            "❌ *No APIs available!*\n\n"
-            "All APIs may be rate limited or excluded.\n"
-            "Try using 'Free APIs' mode or wait 60 seconds.",
-            parse_mode='Markdown'
-        )
-        return
-    
-    await perform_lookup_with_api(update, context, apis_to_try, use_multi_key, is_auto_mode)
-
-async def perform_lookup_with_api(update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                                   apis_to_try: List, use_multi_key: bool = False, 
-                                   is_auto_mode: bool = False) -> None:
-    """Perform lookup with specific APIs."""
-    query = update.callback_query
-    rc = context.user_data.get('rc', '')
-    
-    data = None
-    raw_data = None
-    used_api = None
-    used_priority = None
-    used_key = None
-    attempted = 0
-    skipped_count = 0
-    excluded_count = 0
-    service_unavailable_count = 0
-    
-    status_message = await query.edit_message_text(
-        f"🔍 *Searching for {rc}*\n"
-        f"📡 Trying {len(apis_to_try)} APIs...\n"
-        f"⏳ Progress: 0/{len(apis_to_try)}",
-        parse_mode='Markdown'
-    )
-    
-    for i, api_config in enumerate(apis_to_try):
-        attempted += 1
-        api_name = api_config["name"]
-        priority = api_config.get('priority', attempted)
-        
-        try:
-            await status_message.edit_text(
-                f"🔍 *Searching for {rc}*\n"
-                f"📡 Trying [{i+1}/{len(apis_to_try)}] {api_name[:30]}...\n"
-                f"⏳ Priority #{priority}",
-                parse_mode='Markdown'
-            )
-        except:
-            pass
-        
-        if is_auto_mode and is_excluded_from_auto_mode(api_config):
-            excluded_count += 1
-            continue
-        
-        if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
-            if rate_tracker.is_rate_limited(api_name, api_config.get('url', '')):
-                skipped_count += 1
-                continue
-        
-        if use_multi_key:
-            result = rc_lookup_with_auto_retry(rc, api_config, is_auto_mode)
-            
-            if "error" not in result and len(result) > 0 and "skipped" not in result:
-                if "_key_used" in result:
-                    key_used = result.pop('_key_used', 'unknown')
-                    keys_data, _ = get_all_keys_with_status()
-                    key_name = keys_data.get(key_used, {}).get('name', key_used)
-                    used_key = f"{key_used} ({key_name})"
-                else:
-                    used_key = "Default"
-                
-                raw_data = result
-                data = normalize_data(result)
-                used_api = api_name
-                used_priority = priority
-                break
-            else:
-                error = result.get("error", "No data") if isinstance(result, dict) else "Invalid"
-                if result.get("skipped", False):
-                    pass
-                elif "503" in error or "Service Unavailable" in error:
-                    service_unavailable_count += 1
-        else:
-            if api_config.get('is_free', False):
-                result = fetch_from_free_api(rc, api_config, is_auto_mode)
-            else:
-                result = fetch_with_retry(rc, api_config, is_auto_mode=is_auto_mode)
-            
-            if "error" not in result and len(result) > 0 and "skipped" not in result:
-                raw_data = result
-                data = normalize_data(result)
-                used_api = api_name
-                used_priority = priority
-                active_id = get_active_key_id()
-                keys_data, _ = get_all_keys_with_status()
-                active_name = keys_data.get(active_id, {}).get('name', active_id)
-                used_key = active_id + " (" + active_name + ")"
-                break
-            else:
-                error = result.get("error", "No data") if isinstance(result, dict) else "Invalid"
-                if result.get("skipped", False):
-                    pass
-                elif "503" in error or "Service Unavailable" in error:
-                    service_unavailable_count += 1
-    
-    if data is not None:
-        result_text = format_vehicle_info(data, rc, used_api, used_priority, used_key)
-        await status_message.edit_text(result_text, parse_mode='Markdown')
-        
-        save_results(rc, data, raw_data if raw_data else {}, used_api, used_priority, used_key)
-        
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"✅ *Results saved!* 📁 `ZYNTRASEC_{rc}_*.json`",
-            parse_mode='Markdown'
-        )
-    else:
-        await status_message.edit_text(
-            f"❌ *All APIs failed!*\n\n"
-            f"RC: `{rc}`\n"
-            f"Attempted: {attempted} APIs\n"
-            f"Skipped: {skipped_count} (rate limited)\n"
-            f"Excluded: {excluded_count} (Priority 1,2,3)\n"
-            f"503 Errors: {service_unavailable_count}\n\n"
-            f"💡 Try using 'Free APIs' mode or wait 60 seconds.",
-            parse_mode='Markdown'
-        )
-
-def format_vehicle_info(data: Dict, rc: str, api_name: str, priority: int, key_used: str = "") -> str:
+def format_vehicle_info(data: Dict, rc: str, api_name: str, priority: int) -> str:
+    """Format vehicle info for Telegram message."""
     state = "Unknown"
     if rc:
         clean_rc = re.sub(r'[-]', '', rc)
         state = clean_rc[:2].upper() if len(clean_rc) >= 2 else "Unknown"
     
-    text = f"""
-*🚗 VEHICLE INFORMATION*
-━━━━━━━━━━━━━━━━━━━━━━━
-📋 *RC Number:* `{rc}`
-📍 *State:* `{state}`
-📡 *API:* {api_name}
-🔑 *Key Used:* {key_used}
-━━━━━━━━━━━━━━━━━━━━━━━
+    message = f"""
+🚗 *VEHICLE INFORMATION*
+─────────────────────
+📍 *RC Number:* `{rc}`
+📍 *State:* {state}
+📡 *API:* {api_name} (Priority #{priority})
+🔒 *ZYNTRASEC SECURITY* | Copyright {YEAR}
+─────────────────────
 """
     
     if "error" in data:
-        text += f"\n❌ *Error:* {data['error']}"
-        return text
+        message += f"\n❌ *Error:* {data['error']}"
+        return message
     
     raw_data = data.pop('_raw', None)
     
@@ -1636,109 +1013,302 @@ def format_vehicle_info(data: Dict, rc: str, api_name: str, priority: int, key_u
         'manufactured_year': '🏗️ Manufactured Year'
     }
     
-    displayed = 0
+    mapped = {}
+    unmapped = {}
     for key, value in data.items():
         if key in field_labels:
-            label = field_labels.get(key, key.replace('_', ' ').title())
-            display_value = value if value else 'N/A'
-            text += f"\n{label}: `{display_value}`"
-            displayed += 1
-        elif not key.startswith('_'):
+            mapped[key] = value
+        else:
+            found = False
             for label_key, label_val in field_labels.items():
                 if label_key.lower() in key.lower() or key.lower() in label_key.lower():
-                    display_value = value if value else 'N/A'
-                    text += f"\n{label_val}: `{display_value}`"
-                    displayed += 1
+                    mapped[key] = value
+                    found = True
                     break
+            if not found and not key.startswith('_'):
+                unmapped[key] = value
+    
+    displayed = 0
+    for key, value in mapped.items():
+        label = field_labels.get(key, key.replace('_', ' ').title())
+        display_value = value if value else 'N/A'
+        message += f"\n*{label}:* `{display_value}`"
+        displayed += 1
+    
+    if unmapped:
+        message += f"\n\n📌 *Additional Data:*"
+        for key, value in unmapped.items():
+            if key == '_raw':
+                continue
+            display_value = value if value else 'N/A'
+            label = key.replace('_', ' ').title()
+            message += f"\n*{label}:* `{display_value}`"
+            displayed += 1
     
     if displayed == 0:
-        text += f"\n❌ *No vehicle data found*"
+        message += "\n❌ No vehicle data found"
     
-    text += f"\n\n━━━━━━━━━━━━━━━━━━━━━━━"
-    text += f"\n🔒 ZYNTRASEC SECURITY | {YEAR}"
-    text += f"\n📡 Data from: {api_name}"
+    message += f"\n\n─────────────────────\n🔒 *ZYNTRASEC SECURITY*\n© {YEAR} All Rights Reserved"
     
-    return text
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("❌ *Operation cancelled.*", parse_mode='Markdown')
-    return ConversationHandler.END
-
-async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        "❌ *Unknown command.*\n\n"
-        "Use /help to see all available commands.",
-        parse_mode='Markdown'
-    )
+    return message
 
 # ===================================================================
-# 🚀 MAIN BOT ENTRY POINT
+# 🤖 TELEGRAM BOT HANDLERS
+# ===================================================================
+
+# User request tracking
+user_requests = {}
+request_queue = Queue()
+processing_users = set()
+
+def is_user_allowed(user_id: int) -> bool:
+    if not ALLOWED_USERS:
+        return True
+    return user_id in ALLOWED_USERS
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /start command"""
+    user = update.effective_user
+    user_id = user.id
+    
+    if not is_user_allowed(user_id):
+        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        return
+    
+    welcome_message = f"""
+🚗 *ZYNTRASEC RC LOOKUP BOT*
+
+🔒 *Version:* {VERSION}
+👤 *Owner:* {BOT_OWNER}
+📡 *APIs:* 20 Working APIs
+🔄 *Auto-Retry:* 503 (3x) | 429 (Auto-Skip)
+⛔ *Skipped APIs:* Priority 1,2,3,5
+
+📝 *How to use:*
+Simply send me any Indian RC number
+Example: `GJ19BC4041` or `GJ-19-BC-4041`
+
+🛡️ *Security:* ZYNTRASEC Encrypted
+
+© {YEAR} {COPYRIGHT}
+"""
+    await update.message.reply_text(welcome_message, parse_mode='Markdown')
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command"""
+    help_text = """
+🤖 *RC Lookup Bot Commands:*
+
+/start - Start the bot
+/help - Show this help message
+/status - Show bot status
+/about - About this bot
+
+📝 *Usage:*
+Just type any Indian RC number
+Example: `GJ19BC4041`
+
+🔒 *Security:*
+- All requests are encrypted
+- Rate limiting protection
+- Auto-retry on failures
+
+© ZYNTRASEC Security
+"""
+    await update.message.reply_text(help_text, parse_mode='Markdown')
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /status command"""
+    user = update.effective_user
+    
+    if not is_user_allowed(user.id):
+        await update.message.reply_text("❌ You are not authorized.")
+        return
+    
+    status_message = f"""
+📊 *Bot Status*
+
+🔒 *License:* ✅ Active
+📡 *APIs:* {len(WORKING_APIS)} available
+🔄 *Auto-Retry:* ON (3x)
+🚫 *Rate Limited:* {rate_tracker.get_limited_count()} APIs
+👥 *Active Users:* {len(processing_users)}
+📦 *Version:* {VERSION}
+
+© {YEAR} {COPYRIGHT}
+"""
+    await update.message.reply_text(status_message, parse_mode='Markdown')
+
+async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /about command"""
+    about_text = f"""
+🔒 *About ZYNTRASEC RC Bot*
+
+🛡️ *Security Tool:* Advanced RC Lookup
+📡 *APIs:* 20 Working APIs
+🔄 *Auto-Retry:* Yes (503 3x, 429 Auto-Skip)
+⛔ *Skipped:* Priority 1,2,3,5
+
+👤 *Developer:* {AUTHOR}
+📦 *Version:* {VERSION}
+📅 *Year:* {YEAR}
+
+🔐 *License:* ZYNTRASEC@2026
+
+© {YEAR} {COPYRIGHT}
+"""
+    await update.message.reply_text(about_text, parse_mode='Markdown')
+
+async def handle_rc_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle RC number input"""
+    user = update.effective_user
+    user_id = user.id
+    
+    if not is_user_allowed(user_id):
+        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        return
+    
+    # Check if user is already processing
+    if user_id in processing_users:
+        await update.message.reply_text("⏳ Please wait, your previous request is still processing...")
+        return
+    
+    rc = update.message.text.strip().upper()
+    
+    # Validate RC format
+    state_codes = [
+        "AP","AR","AS","BR","CG","GA","GJ","HR","HP","JK","JH",
+        "KA","KL","MP","MH","MN","ML","MZ","NL","OR","PB","RJ",
+        "SK","TN","TR","UP","WB","AN","CH","DN","DD","DL","LD",
+        "PY","TS","TG","LA"
+    ]
+    pattern = r'^(' + '|'.join(state_codes) + r')[-]?\d{1,2}[-]?[A-Z]{1,2}[-]?\d{4}$'
+    
+    if not re.match(pattern, rc):
+        await update.message.reply_text(
+            "❌ *Invalid RC Number*\n\n"
+            "Please enter a valid Indian RC number.\n"
+            "Format: `GJ19BC4041` or `GJ-19-BC-4041`\n\n"
+            "Example: `GJ19BC4041`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # Send processing message
+    processing_msg = await update.message.reply_text(
+        f"🔍 *Searching for RC:* `{rc}`\n"
+        f"⏳ Please wait...",
+        parse_mode='Markdown'
+    )
+    
+    try:
+        processing_users.add(user_id)
+        
+        # Perform lookup
+        result = rc_lookup(rc)
+        
+        if "error" in result:
+            await processing_msg.edit_text(
+                f"❌ *RC Lookup Failed*\n\n"
+                f"RC: `{rc}`\n"
+                f"Error: {result['error']}\n\n"
+                f"💡 Try again later or check the RC number.",
+                parse_mode='Markdown'
+            )
+        else:
+            api_name = result.pop('_api_used', 'Unknown')
+            priority = result.pop('_priority', 0)
+            data = normalize_data(result)
+            
+            formatted_message = format_vehicle_info(data, rc, api_name, priority)
+            
+            # Split message if too long (Telegram limit: 4096 characters)
+            if len(formatted_message) > 4000:
+                parts = formatted_message.split('\n')
+                current_part = ""
+                for line in parts:
+                    if len(current_part) + len(line) + 1 > 4000:
+                        await update.message.reply_text(current_part, parse_mode='Markdown')
+                        current_part = line + "\n"
+                    else:
+                        current_part += line + "\n"
+                if current_part:
+                    await update.message.reply_text(current_part, parse_mode='Markdown')
+                await processing_msg.delete()
+            else:
+                await processing_msg.edit_text(formatted_message, parse_mode='Markdown')
+    
+    except Exception as e:
+        await processing_msg.edit_text(
+            f"❌ *Error occurred*\n\n"
+            f"RC: `{rc}`\n"
+            f"Error: {str(e)}\n\n"
+            f"Please try again later.",
+            parse_mode='Markdown'
+        )
+    
+    finally:
+        processing_users.discard(user_id)
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors"""
+    print(f"Error: {context.error}")
+    if update and update.effective_message:
+        await update.effective_message.reply_text(
+            "❌ An error occurred. Please try again later."
+        )
+
+# ===================================================================
+# 🚀 BOT MAIN FUNCTION
 # ===================================================================
 
 def main():
-    # Check license
-    auto_set_mac()
+    """Start the bot"""
+    print(f"{Colors.CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
+    print(f"{Colors.CYAN}║                                                              ║{Colors.END}")
+    print(f"{Colors.CYAN}║   ███████╗██╗   ██╗███╗   ██╗████████╗██████╗  █████╗     ║{Colors.END}")
+    print(f"{Colors.CYAN}║   ╚══███╔╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██╔══██╗██╔══██╗    ║{Colors.END}")
+    print(f"{Colors.CYAN}║     ███╔╝  ╚████╔╝ ██╔██╗ ██║   ██║   ██████╔╝███████║    ║{Colors.END}")
+    print(f"{Colors.CYAN}║    ███╔╝    ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██╗██╔══██║    ║{Colors.END}")
+    print(f"{Colors.CYAN}║   ███████╗   ██║   ██║ ╚████║   ██║   ██║  ██║██║  ██║    ║{Colors.END}")
+    print(f"{Colors.CYAN}║   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝    ║{Colors.END}")
+    print(f"{Colors.CYAN}║                                                              ║{Colors.END}")
+    print(f"{Colors.CYAN}║            🔒 ZYNTRASEC SECURITY ADVANCED 🔒                ║{Colors.END}")
+    print(f"{Colors.CYAN}║         🤖 TELEGRAM BOT - RC Lookup                        ║{Colors.END}")
+    print(f"{Colors.CYAN}║                                                              ║{Colors.END}")
+    print(f"{Colors.CYAN}║   Version: {VERSION:<10}  Copyright {YEAR}                   ║{Colors.END}")
+    print(f"{Colors.CYAN}║   {COPYRIGHT}                                                ║{Colors.END}")
+    print(f"{Colors.CYAN}║                                                              ║{Colors.END}")
+    print(f"{Colors.CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
     
+    # Verify license
     if not verify_license_file():
-        print("⚠️ License not found. Generating license file...")
+        print(f"{Colors.YELLOW}  ⚠️ License not found. Generating...{Colors.END}")
         generate_license_file()
-        print("✅ License file generated!")
     
-    if not verify_date():
-        print("❌ License expired!")
-        sys.exit(1)
-    
-    print(f"🚗 ZYNTRASEC RC Lookup Bot v{VERSION}")
-    print(f"📡 {len(WORKING_APIS)} APIs loaded")
-    print(f"🔑 API Key: {get_active_key()[:15]}...")
-    print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
+    print(f"{Colors.GREEN}  ✅ License verified!{Colors.END}")
+    print(f"{Colors.CYAN}  🤖 Starting Telegram Bot...{Colors.END}")
+    print(f"{Colors.CYAN}  📡 {len(WORKING_APIS)} APIs loaded{Colors.END}")
+    print(f"{Colors.CYAN}  ⛔ AUTO MODE Skips: Priority 1,2,3,5{Colors.END}")
+    print(f"{Colors.CYAN}  🔄 503 Retry: 3 times per API{Colors.END}")
+    print(f"{Colors.GREEN}  ✅ Bot is ready!{Colors.END}\n")
     
     # Create application
     application = Application.builder().token(BOT_TOKEN).build()
     
-    # Conversation handler for RC lookup
-    conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('lookup', lookup_start),
-            CommandHandler('start', start)
-        ],
-        states={
-            WAITING_FOR_RC: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_rc_received)
-            ],
-            WAITING_FOR_API_SELECTION: [
-                CallbackQueryHandler(button_callback)
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=True,
-    )
-    
     # Add handlers
-    application.add_handler(conv_handler)
-    application.add_handler(CommandHandler('help', help_command))
-    application.add_handler(CommandHandler('status', status_command))
-    application.add_handler(CommandHandler('apilist', apilist_command))
-    application.add_handler(CallbackQueryHandler(button_callback))
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("about", about_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_rc_number))
+    application.add_error_handler(error_handler)
     
     # Start bot
-    print("🤖 Bot is running... Press Ctrl+C to stop.")
+    print(f"{Colors.GREEN}  🚀 Bot is running... Press Ctrl+C to stop{Colors.END}")
+    print(f"{Colors.CYAN}  📱 Find your bot at: https://t.me/{BOT_USERNAME}{Colors.END}\n")
     
-    try:
-        application.run_polling(
-            allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True
-        )
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        print("💡 Make sure only one instance of the bot is running.")
-        print("💡 Try: pkill -f 'python3.*rtobot.py'")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--generate-license":
-        print("Generating license file...")
-        generate_license_file()
-        print("✅ License file generated!")
-        sys.exit(0)
     main()
