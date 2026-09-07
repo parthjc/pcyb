@@ -1,0 +1,2575 @@
+#!/usr/bin/env python3
+# ZYNTRASEC SECURITY - Advanced RC Lookup with Auto Mode API Filter
+# Copyright © 2026 ZYNTRASEC Security. All Rights Reserved.
+
+import os
+import sys
+import subprocess
+import importlib
+import time
+import random
+from datetime import datetime
+from typing import Dict, Any, Optional, List, Set
+import base64
+import json
+import re
+import hashlib
+import uuid
+import platform
+import socket
+import struct
+import fcntl
+
+# ===================================================================
+# 📦 AUTO-INSTALL DEPENDENCIES
+# ===================================================================
+
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+        print(f"✅ Installed: {package}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install {package}: {e}")
+        return False
+
+def ensure_requirements():
+    required = ['requests', 'beautifulsoup4', 'lxml', 'cryptography']
+    for pkg in required:
+        try:
+            if pkg == 'cryptography':
+                import cryptography
+            else:
+                importlib.import_module(pkg.replace('-', '_'))
+        except ImportError:
+            print(f"⚠️ {pkg} not found. Installing...")
+            install_package(pkg)
+
+ensure_requirements()
+
+# Now import
+import requests
+from bs4 import BeautifulSoup
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+# ===================================================================
+# 🔒 SECURE LICENSE SYSTEM
+# ===================================================================
+
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+
+class SecureLicenseManager:
+    """Enhanced secure license management system"""
+    
+    def __init__(self):
+        self.license_file = "license.lic"
+        self.version = "9.6.0 AUTO-FILTER"
+        self.author = "ZYNTRASEC Security"
+        self.copyright = "© 2026 ZYNTRASEC Security. All Rights Reserved."
+        self.year = "2026"
+        self.expiry_date = "2030-12-31"
+        self.master_key = self._get_master_key()
+        self.license_key = self._get_secure_license_key()
+    
+    def _get_mac_address(self) -> Optional[str]:
+        """Get MAC address securely across platforms"""
+        try:
+            if platform.system() == "Windows":
+                try:
+                    import winreg
+                    key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                       r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}")
+                    for i in range(100):
+                        try:
+                            subkey = winreg.EnumKey(key, i)
+                            skey = winreg.OpenKey(key, subkey)
+                            mac = winreg.QueryValueEx(skey, "MACAddress")[0]
+                            if mac and mac != "00:00:00:00:00:00":
+                                return mac
+                        except:
+                            continue
+                except:
+                    pass
+            
+            elif platform.system() == "Linux":
+                try:
+                    import fcntl
+                    import struct
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    info = fcntl.ioctl(s.fileno(), 0x8927, struct.pack('256s', b'eth0'))
+                    return ':'.join('%02x' % b for b in info[18:24])
+                except:
+                    pass
+            
+            elif platform.system() == "Darwin":  # macOS
+                try:
+                    import fcntl
+                    import struct
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    info = fcntl.ioctl(s.fileno(), 0x8927, struct.pack('256s', b'en0'))
+                    return ':'.join('%02x' % b for b in info[18:24])
+                except:
+                    pass
+            
+            # Fallback methods
+            try:
+                import uuid
+                mac = uuid.getnode()
+                return ':'.join(['{:02x}'.format((mac >> elements) & 0xff) for elements in range(5, -1, -1)])
+            except:
+                pass
+            
+            try:
+                result = subprocess.check_output(['ifconfig'], text=True)
+                mac_match = re.search(r'ether\s+([0-9a-fA-F:]{17})', result)
+                if mac_match:
+                    return mac_match.group(1)
+            except:
+                pass
+            
+            try:
+                result = subprocess.check_output(['ip', 'link'], text=True)
+                mac_match = re.search(r'link/ether\s+([0-9a-fA-F:]{17})', result)
+                if mac_match:
+                    return mac_match.group(1)
+            except:
+                pass
+            
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ MAC detection error: {e}")
+            return self._get_fallback_mac()
+    
+    def _get_fallback_mac(self) -> str:
+        """Fallback MAC generation"""
+        return ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff) 
+                        for elements in range(5, -1, -1)])
+    
+    def _get_master_key(self) -> bytes:
+        """Generate a machine-specific master key"""
+        try:
+            identifiers = [
+                self._get_mac_address() or "00:00:00:00:00:00",
+                platform.node() or "unknown",
+                platform.system() or "unknown",
+                platform.machine() or "unknown",
+                str(uuid.getnode()),
+                os.path.realpath(sys.executable) if hasattr(sys, 'executable') else "python"
+            ]
+            
+            combined = "|".join(identifiers).encode()
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b"ZYNTRASEC_SALT_2026_V2",
+                iterations=100000,
+            )
+            return base64.urlsafe_b64encode(kdf.derive(combined))
+        except Exception as e:
+            print(f"⚠️ Master key generation error: {e}")
+            return base64.urlsafe_b64encode(b"ZYNTRASEC_MASTER_KEY_2026")
+    
+    def _get_secure_license_key(self) -> str:
+        """Retrieve or generate secure license key"""
+        env_key = os.environ.get('ZYNTRASEC_LICENSE_KEY')
+        if env_key:
+            return env_key
+        
+        if os.path.exists(self.license_file):
+            try:
+                with open(self.license_file, 'r') as f:
+                    data = json.load(f)
+                if 'data' in data:
+                    decrypted = self._decrypt_data(data['data'])
+                    if decrypted and 'key' in decrypted:
+                        return decrypted['key']
+            except:
+                pass
+        
+        return self._generate_license_key()
+    
+    def _generate_license_key(self) -> str:
+        """Generate a cryptographically secure license key"""
+        import secrets
+        import string
+        
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        key = ''.join(secrets.choice(alphabet) for _ in range(64))
+        
+        mac = self._get_mac_address() or "000000000000"
+        signature = hashlib.sha256(f"{key}{mac}".encode()).hexdigest()[:16]
+        
+        return f"{key}-{signature}"
+    
+    def _encrypt_data(self, data: Dict) -> str:
+        """Encrypt license data"""
+        try:
+            fernet = Fernet(self.master_key)
+            json_data = json.dumps(data).encode()
+            encrypted = fernet.encrypt(json_data)
+            return base64.urlsafe_b64encode(encrypted).decode()
+        except Exception as e:
+            print(f"❌ Encryption error: {e}")
+            return ""
+    
+    def _decrypt_data(self, encrypted_data: str) -> Dict:
+        """Decrypt license data"""
+        try:
+            fernet = Fernet(self.master_key)
+            encrypted_bytes = base64.urlsafe_b64decode(encrypted_data.encode())
+            decrypted = fernet.decrypt(encrypted_bytes)
+            return json.loads(decrypted.decode())
+        except Exception as e:
+            print(f"❌ Decryption error: {e}")
+            return {}
+    
+    def verify_license(self) -> bool:
+        """Verify license with multiple security checks"""
+        try:
+            if not os.path.exists(self.license_file):
+                return self._handle_no_license()
+            
+            with open(self.license_file, 'r') as f:
+                license_data = json.load(f)
+            
+            if 'key_hash' in license_data and 'data' not in license_data:
+                print("⚠️ Old license format detected. Generating new secure license...")
+                self.generate_license()
+                return self.verify_license()
+            
+            if 'data' in license_data:
+                decrypted = self._decrypt_data(license_data['data'])
+                if not decrypted:
+                    return False
+                
+                if not self._verify_license_components(decrypted):
+                    return False
+                
+                return True
+            
+            return False
+            
+        except Exception as e:
+            print(f"❌ License verification error: {e}")
+            return False
+    
+    def _verify_license_components(self, data: Dict) -> bool:
+        """Verify all license components"""
+        # Check version
+        if data.get('version') != self.version:
+            print(f"❌ Version mismatch: {data.get('version')} != {self.version}")
+            return False
+        
+        # Check expiry
+        try:
+            current = datetime.now().date()
+            expiry = datetime.strptime(data.get('expiry', self.expiry_date), "%Y-%m-%d").date()
+            if current > expiry:
+                print(f"❌ License expired on {expiry}")
+                return False
+        except:
+            print("❌ Invalid expiry date")
+            return False
+        
+        # Check MAC address
+        current_mac = self._get_mac_address()
+        if current_mac and data.get('mac'):
+            if current_mac.lower() != data['mac'].lower():
+                print(f"❌ MAC address mismatch")
+                return False
+        
+        # Check signature
+        try:
+            expected = hashlib.sha256(
+                f"{data['key']}{data['mac']}{data['expiry']}{self.master_key.decode()}".encode()
+            ).hexdigest()
+            
+            if data.get('signature') != expected:
+                print(f"❌ Invalid license signature")
+                return False
+        except:
+            return False
+        
+        return True
+    
+    def _handle_no_license(self) -> bool:
+        """Handle case where no license file exists"""
+        print(f"{Colors.YELLOW}  ⚠️ License not found.{Colors.END}")
+        print(f"{Colors.CYAN}  🔒 Enter license key to continue{Colors.END}")
+        print(f"{Colors.DIM}  💡 Or use --generate-license to create one{Colors.END}")
+        entered = input(f"{Colors.MAGENTA}  🔑 License Key: {Colors.END}").strip()
+        
+        if self._validate_license_key(entered):
+            print(f"{Colors.GREEN}  ✅ License verified!{Colors.END}")
+            self.generate_license(entered)
+            return True
+        else:
+            print(f"{Colors.RED}  ❌ Invalid license key!{Colors.END}")
+            return False
+    
+    def _validate_license_key(self, key: str) -> bool:
+        """Validate the entered license key"""
+        if len(key) < 32:
+            return False
+        
+        try:
+            parts = key.split('-')
+            if len(parts) != 2:
+                return False
+            
+            key_part = parts[0]
+            sig_part = parts[1]
+            
+            mac = self._get_mac_address() or "000000000000"
+            expected_sig = hashlib.sha256(f"{key_part}{mac}".encode()).hexdigest()[:16]
+            
+            return sig_part == expected_sig
+            
+        except Exception:
+            return False
+    
+    def generate_license(self, key: str = None) -> None:
+        """Generate a secure license file"""
+        mac = self._get_mac_address() or "00:00:00:00:00:00"
+        
+        if not key:
+            key = self._generate_license_key()
+        
+        license_data = {
+            'key': key,
+            'mac': mac,
+            'expiry': self.expiry_date,
+            'version': self.version,
+            'generated': datetime.now().isoformat()
+        }
+        
+        license_data['signature'] = hashlib.sha256(
+            f"{key}{mac}{self.expiry_date}{self.master_key.decode()}".encode()
+        ).hexdigest()
+        
+        encrypted = self._encrypt_data(license_data)
+        
+        data_to_save = {
+            'data': encrypted,
+            'format': 'secure_v2',
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        with open(self.license_file, 'w') as f:
+            json.dump(data_to_save, f, indent=4)
+        
+        print(f"{Colors.GREEN}  ✅ Secure license file generated: {self.license_file}{Colors.END}")
+        print(f"{Colors.DIM}     Key: {key}{Colors.END}")
+        print(f"{Colors.DIM}     MAC: {mac}{Colors.END}")
+        print(f"{Colors.DIM}     Expiry: {self.expiry_date}{Colors.END}")
+        print(f"{Colors.DIM}     Version: {self.version}{Colors.END}")
+    
+    def get_license_info(self) -> Dict:
+        """Get license information"""
+        try:
+            if not os.path.exists(self.license_file):
+                return {'status': 'not_found'}
+            
+            with open(self.license_file, 'r') as f:
+                data = json.load(f)
+            
+            if 'data' in data:
+                decrypted = self._decrypt_data(data['data'])
+                if decrypted:
+                    return {
+                        'status': 'valid',
+                        'expiry': decrypted.get('expiry'),
+                        'version': decrypted.get('version'),
+                        'generated': decrypted.get('generated'),
+                        'mac': decrypted.get('mac'),
+                        'key_preview': decrypted.get('key', '')[:20] + '...'
+                    }
+            
+            return {'status': 'invalid'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+# ===================================================================
+# 🔑 SECURE API KEY MANAGEMENT
+# ===================================================================
+
+class SecureKeyManager:
+    """Secure API key management with encryption"""
+    
+    def __init__(self):
+        self.keys_file = "api_keys.json"
+        self._init_storage()
+    
+    def _get_encryption_key(self) -> bytes:
+        """Get encryption key for API keys"""
+        try:
+            system_info = f"{platform.node()}{platform.system()}{uuid.getnode()}{platform.machine()}"
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b"ZYNTRASEC_API_SALT_2026",
+                iterations=100000,
+            )
+            return base64.urlsafe_b64encode(kdf.derive(system_info.encode()))
+        except:
+            return base64.urlsafe_b64encode(b"ZYNTRASEC_API_KEY_2026")
+    
+    def _encrypt_value(self, value: str) -> str:
+        """Encrypt a value"""
+        if not value:
+            return ""
+        try:
+            fernet = Fernet(self._get_encryption_key())
+            return base64.urlsafe_b64encode(fernet.encrypt(value.encode())).decode()
+        except:
+            return ""
+    
+    def _decrypt_value(self, encrypted: str) -> str:
+        """Decrypt a value"""
+        if not encrypted:
+            return ""
+        try:
+            fernet = Fernet(self._get_encryption_key())
+            return fernet.decrypt(base64.urlsafe_b64decode(encrypted.encode())).decode()
+        except:
+            return ""
+    
+    def _init_storage(self):
+        """Initialize secure key storage"""
+        if not os.path.exists(self.keys_file):
+            self._create_default_keys()
+    
+    def _create_default_keys(self):
+        """Create default encrypted keys"""
+        default_data = {
+            'keys': {
+                'key1': self._encrypt_value("cc54872d5dmshee8d02a0f0e71f6p14936bjsn5d397631d9c2"),
+                'key2': "",
+                'key3': ""
+            },
+            'active': 'key1',
+            'key_names': {
+                'key1': 'Primary Key',
+                'key2': 'Backup Key 1',
+                'key3': 'Backup Key 2'
+            },
+            'last_updated': datetime.now().isoformat(),
+            'encrypted': True,
+            'version': '2.0'
+        }
+        with open(self.keys_file, 'w') as f:
+            json.dump(default_data, f, indent=4)
+    
+    def load_keys(self) -> Dict:
+        """Load and decrypt keys"""
+        try:
+            with open(self.keys_file, 'r') as f:
+                data = json.load(f)
+            
+            if data.get('encrypted', False):
+                decrypted_keys = {}
+                for key_id, encrypted_key in data.get('keys', {}).items():
+                    decrypted_keys[key_id] = self._decrypt_value(encrypted_key)
+                data['keys'] = decrypted_keys
+            
+            return data
+        except Exception as e:
+            print(f"⚠️ Error loading keys: {e}")
+            return {'keys': {'key1': '', 'key2': '', 'key3': ''}, 'active': 'key1'}
+    
+    def save_keys(self, data: Dict) -> bool:
+        """Save encrypted keys"""
+        try:
+            encrypted_keys = {}
+            for key_id, key_value in data.get('keys', {}).items():
+                encrypted_keys[key_id] = self._encrypt_value(key_value)
+            
+            data['keys'] = encrypted_keys
+            data['encrypted'] = True
+            data['last_updated'] = datetime.now().isoformat()
+            data['version'] = '2.0'
+            
+            with open(self.keys_file, 'w') as f:
+                json.dump(data, f, indent=4)
+            return True
+        except Exception as e:
+            print(f"❌ Error saving keys: {e}")
+            return False
+    
+    def get_active_key(self) -> str:
+        """Get active key"""
+        data = self.load_keys()
+        active = data.get('active', 'key1')
+        return data.get('keys', {}).get(active, "")
+    
+    def get_all_keys(self) -> List[tuple]:
+        """Get all valid keys"""
+        data = self.load_keys()
+        keys = data.get('keys', {})
+        valid_keys = []
+        for key_id, key_value in keys.items():
+            if key_value and key_value.strip():
+                valid_keys.append((key_id, key_value))
+        return valid_keys
+
+# ===================================================================
+# 🔄 RETRY CONFIGURATION
+# ===================================================================
+
+RETRY_CONFIG = {
+    "max_retries": 3,
+    "max_503_retries": 3,
+    "base_delay": 1,
+    "max_delay": 10,
+    "backoff_factor": 1.5,
+    "jitter": True,
+    "retry_status_codes": [429, 503, 504, 502, 500, 408, 403],
+    "retry_on_error": True,
+    "switch_key_on_429": True,
+    "auto_skip_429": True,
+    "skip_cooldown_seconds": 60,
+}
+
+# ===================================================================
+# 🔥 AUTO MODE - EXCLUDED APIS
+# ===================================================================
+
+# Exclude priorities 1, 2, 3, 5, and 28 from AUTO MODE
+# Priority 28 (RTO Challan) will be SKIPPED in AUTO MODE
+# Only Free APIs (29-30) will run in AUTO MODE
+AUTO_MODE_EXCLUDED_PRIORITIES = [1, 2, 3, 5, 28]
+AUTO_MODE_EXCLUDED_NAMES = [
+    "🏆 N029BEST1 - Advance RC Verification",
+    "🥈 N024BEST2 - RTO Address Details",
+    "🥉 N031 - Vahan Official",
+    "5️⃣ N05 - Challan Info",
+    "2️⃣8️⃣ RTO Challan Information India"
+]
+
+# ===================================================================
+# 🚫 RATE LIMITED API TRACKER
+# ===================================================================
+
+class RateLimitTracker:
+    def __init__(self):
+        self.rate_limited_apis: Set[str] = set()
+        self.rate_limited_urls: Set[str] = set()
+        self.rate_limit_cooldown: Dict[str, float] = {}
+        self.cooldown_seconds = 60
+    
+    def is_rate_limited(self, api_name: str, api_url: str) -> bool:
+        if api_url in self.rate_limit_cooldown:
+            if time.time() < self.rate_limit_cooldown[api_url]:
+                return True
+            else:
+                self.remove_from_rate_limit(api_url)
+                return False
+        return api_name in self.rate_limited_apis or api_url in self.rate_limited_urls
+    
+    def mark_rate_limited(self, api_name: str, api_url: str):
+        self.rate_limited_apis.add(api_name)
+        self.rate_limited_urls.add(api_url)
+        self.rate_limit_cooldown[api_url] = time.time() + self.cooldown_seconds
+        print(f"  {Colors.YELLOW}🚫 Auto-skipping: {api_name} (Rate Limited - {self.cooldown_seconds}s cooldown){Colors.END}")
+    
+    def remove_from_rate_limit(self, api_url: str):
+        to_remove = []
+        for name in self.rate_limited_apis:
+            for api in WORKING_APIS:
+                if api.get('name') == name and api.get('url') == api_url:
+                    to_remove.append(name)
+                    break
+        for name in to_remove:
+            self.rate_limited_apis.discard(name)
+        self.rate_limited_urls.discard(api_url)
+        self.rate_limit_cooldown.pop(api_url, None)
+    
+    def reset_all(self):
+        self.rate_limited_apis.clear()
+        self.rate_limited_urls.clear()
+        self.rate_limit_cooldown.clear()
+    
+    def get_limited_count(self) -> int:
+        return len(self.rate_limited_urls)
+    
+    def get_limited_list(self) -> List[str]:
+        return list(self.rate_limited_apis)
+
+rate_tracker = RateLimitTracker()
+
+# ===================================================================
+# 🔑 API KEY MANAGEMENT FUNCTIONS
+# ===================================================================
+
+key_manager = SecureKeyManager()
+
+def get_active_key():
+    return key_manager.get_active_key()
+
+def get_active_key_id():
+    data = key_manager.load_keys()
+    return data.get('active', 'key1')
+
+def get_key_name(key_id):
+    data = key_manager.load_keys()
+    return data.get('key_names', {}).get(key_id, key_id)
+
+def get_all_keys_with_status():
+    data = key_manager.load_keys()
+    keys = data.get('keys', {})
+    active = data.get('active', 'key1')
+    names = data.get('key_names', {})
+    
+    result = {}
+    for key_id in ['key1', 'key2', 'key3']:
+        result[key_id] = {
+            'key': keys.get(key_id, ''),
+            'active': key_id == active,
+            'name': names.get(key_id, key_id)
+        }
+    return result, active
+
+def get_all_valid_keys():
+    return key_manager.get_all_keys()
+
+def set_active_key(key_id):
+    data = key_manager.load_keys()
+    if key_id in data.get('keys', {}) and data['keys'][key_id]:
+        data['active'] = key_id
+        return key_manager.save_keys(data)
+    return False
+
+def update_key(key_id, new_key, name=None):
+    data = key_manager.load_keys()
+    if key_id in data.get('keys', {}):
+        data['keys'][key_id] = new_key.strip()
+        if name:
+            if 'key_names' not in data:
+                data['key_names'] = {}
+            data['key_names'][key_id] = name
+        return key_manager.save_keys(data)
+    return False
+
+def remove_key(key_id):
+    data = key_manager.load_keys()
+    if key_id in data.get('keys', {}):
+        data['keys'][key_id] = ""
+        if data.get('active') == key_id:
+            for k, v in data['keys'].items():
+                if v:
+                    data['active'] = k
+                    break
+            else:
+                data['active'] = 'key1'
+        return key_manager.save_keys(data)
+    return False
+
+def set_key_name(key_id, name):
+    data = key_manager.load_keys()
+    if 'key_names' not in data:
+        data['key_names'] = {}
+    data['key_names'][key_id] = name
+    return key_manager.save_keys(data)
+
+# ===================================================================
+# 🔄 RETRY FUNCTIONS
+# ===================================================================
+
+def should_retry(status_code: int, error_text: str = "") -> bool:
+    retry_codes = RETRY_CONFIG["retry_status_codes"]
+    if status_code in retry_codes:
+        return True
+    rate_limit_keywords = ['rate limit', 'too many', 'quota', 'exceeded', '429']
+    if any(keyword in error_text.lower() for keyword in rate_limit_keywords):
+        return True
+    service_keywords = ['service unavailable', '503', 'gateway', 'timeout']
+    if any(keyword in error_text.lower() for keyword in service_keywords):
+        return True
+    return False
+
+def calculate_backoff(attempt: int) -> float:
+    base_delay = RETRY_CONFIG["base_delay"]
+    max_delay = RETRY_CONFIG["max_delay"]
+    backoff_factor = RETRY_CONFIG["backoff_factor"]
+    jitter = RETRY_CONFIG["jitter"]
+    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+    if jitter:
+        jitter_amount = delay * 0.3
+        delay = delay + random.uniform(-jitter_amount, jitter_amount)
+    return max(0.5, delay)
+
+def rotate_api_key():
+    valid_keys = get_all_valid_keys()
+    current_active = get_active_key_id()
+    if len(valid_keys) <= 1:
+        return False
+    current_index = -1
+    for i, (key_id, _) in enumerate(valid_keys):
+        if key_id == current_active:
+            current_index = i
+            break
+    next_index = (current_index + 1) % len(valid_keys)
+    next_key_id = valid_keys[next_index][0]
+    if set_active_key(next_key_id):
+        global RAPIDAPI_KEY
+        RAPIDAPI_KEY = get_active_key()
+        update_api_headers()
+        print(f"  {Colors.YELLOW}🔄 Switched to key: {next_key_id} ({get_key_name(next_key_id)}){Colors.END}")
+        return True
+    return False
+
+# ===================================================================
+# 🚀 ALL WORKING APIS - COMPLETE WITH 30 APIS
+# ===================================================================
+
+RAPIDAPI_KEY = get_active_key()
+
+WORKING_APIS = [
+    # ═══════════════════════════════════════════════════════════
+    # PRIORITY 1-5: BEST PERFORMING APIS (EXCLUDED FROM AUTO MODE)
+    # ═══════════════════════════════════════════════════════════
+    {
+        "priority": 1,
+        "name": "🏆 N029BEST1 - Advance RC Verification",
+        "description": "Best performing RC verification API with detailed vehicle information including owner details, registration, insurance, and more.",
+        "rapidapi_id": "6a9de3635c43b6d27efda17d",
+        "method": "POST",
+        "url": "https://vehicle-rc-verification-advance.p.rapidapi.com/Getrcfulldetails",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-verification-advance.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"rcnumber": None}
+    },
+    {
+        "priority": 2,
+        "name": "🥈 N024BEST2 - RTO Address Details",
+        "description": "Get detailed RTO address information and vehicle registration details.",
+        "rapidapi_id": "N/A",
+        "method": "GET",
+        "url": "https://rto-vehicle-details5.p.rapidapi.com/address",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details5.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration": None}
+    },
+    {
+        "priority": 3,
+        "name": "🥉 N031 - Vahan Official",
+        "description": "Official Vahan vehicle registration details API with comprehensive vehicle data.",
+        "rapidapi_id": "6a9de3a0bcc2628dc03d64cd",
+        "method": "GET",
+        "url": "https://vahan-vehicle-details-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vahan-vehicle-details-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 4,
+        "name": "4️⃣ N02 - Vehicle Info (POST)",
+        "description": "POST-based vehicle information API with consent verification.",
+        "rapidapi_id": "6a9de237897c5a41be42dc7a",
+        "method": "POST",
+        "url": "https://rto-vehicle-information-india.p.rapidapi.com/getVehicleInfo",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {
+            "vehicle_no": None,
+            "consent": "Y",
+            "consent_text": "I hereby give my consent for Eccentric Labs API to fetch my information"
+        }
+    },
+    {
+        "priority": 5,
+        "name": "5️⃣ N05 - Challan Info",
+        "description": "Get challan/e-challan information associated with the vehicle registration number.",
+        "rapidapi_id": "6a9de1e4d894b121ab85c8d3",
+        "method": "POST",
+        "url": "https://rto-challan-information-india.p.rapidapi.com/fetch_challan_info",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-challan-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"reg_no": None}
+    },
+    
+    # ═══════════════════════════════════════════════════════════
+    # PRIORITY 6-10: GOOD PERFORMING APIS
+    # ═══════════════════════════════════════════════════════════
+    {
+        "priority": 6,
+        "name": "6️⃣ N012 - RTO India API",
+        "description": "RTO vehicle information API for Indian registration numbers.",
+        "rapidapi_id": "6a9de200d894b121ab85c8d4",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 7,
+        "name": "7️⃣ NO13 - India3",
+        "description": "Alternative RTO vehicle information API with good success rate.",
+        "rapidapi_id": "N/A",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india3.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india3.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 8,
+        "name": "8️⃣ N014 - India2",
+        "description": "India2 RTO vehicle information API with good coverage.",
+        "rapidapi_id": "N/A",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india2.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india2.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 9,
+        "name": "9️⃣ N016 - India Mega",
+        "description": "Mega RTO vehicle information API with extensive data coverage.",
+        "rapidapi_id": "6a9de253897c5a41be42dc7b",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 10,
+        "name": "🔟 N0.17 - Vehicle Info API",
+        "description": "Vehicle information API with comprehensive vehicle details.",
+        "rapidapi_id": "6a9de26ebcc2628dc03d64c5",
+        "method": "GET",
+        "url": "https://rto-vehicle-info-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-info-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # PRIORITY 11-20: NEW ADDED APIS WITH FULL INFO
+    # ═══════════════════════════════════════════════════════════
+    {
+        "priority": 11,
+        "name": "1️⃣1️⃣ RTO Vehicle Details API",
+        "description": "RTO Vehicle Details API for fetching complete vehicle registration information.",
+        "rapidapi_id": "6a9de304d894b121ab85c8d9",
+        "method": "GET",
+        "url": "https://rto-vehicle-details.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 12,
+        "name": "1️⃣2️⃣ RTO Vehicle Details API",
+        "description": "Alternate RTO Vehicle Details API with good response time.",
+        "rapidapi_id": "6a9de2c5897c5a41be42dc7f",
+        "method": "GET",
+        "url": "https://rto-vehicle-details-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 13,
+        "name": "1️⃣3️⃣ RTO Vehicle Details",
+        "description": "Another RTO vehicle details API for comprehensive vehicle data.",
+        "rapidapi_id": "6a9de28a897c5a41be42dc7e",
+        "method": "GET",
+        "url": "https://rto-vehicle-details.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 14,
+        "name": "1️⃣4️⃣ RTO Vehicle Info API",
+        "description": "RTO vehicle information API with detailed owner and vehicle data.",
+        "rapidapi_id": "6a9de26ebcc2628dc03d64c5",
+        "method": "GET",
+        "url": "https://rto-vehicle-info-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-info-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 15,
+        "name": "1️⃣5️⃣ RTO Vehicle Information India",
+        "description": "Primary RTO vehicle information API for Indian vehicles.",
+        "rapidapi_id": "6a9de237897c5a41be42dc7a",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 16,
+        "name": "1️⃣6️⃣ RTO Vehicle Information India API",
+        "description": "RTO India API for comprehensive vehicle information retrieval.",
+        "rapidapi_id": "6a9de200d894b121ab85c8d4",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 17,
+        "name": "1️⃣7️⃣ Vehicle RC Details MEGA API",
+        "description": "MEGA API for detailed vehicle RC information with extensive data.",
+        "rapidapi_id": "6a9de3c15c43b6d27efda17e",
+        "method": "GET",
+        "url": "https://vehicle-rc-details-mega-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-details-mega-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 18,
+        "name": "1️⃣8️⃣ Vehicle RC Information MEGA",
+        "description": "MEGA API for vehicle RC information with comprehensive coverage.",
+        "rapidapi_id": "6a9de382bcc2628dc03d64cb",
+        "method": "GET",
+        "url": "https://vehicle-rc-information-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-information-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 19,
+        "name": "1️⃣9️⃣ Vehicle RC Verification Advance",
+        "description": "Advance RC verification API with complete vehicle and owner details.",
+        "rapidapi_id": "6a9de3635c43b6d27efda17d",
+        "method": "POST",
+        "url": "https://vehicle-rc-verification-advance.p.rapidapi.com/Getrcfulldetails",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-verification-advance.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"rcnumber": None}
+    },
+    {
+        "priority": 20,
+        "name": "2️⃣0️⃣ Vehicle RC Information MEGA",
+        "description": "Alternate MEGA API for vehicle RC information.",
+        "rapidapi_id": "6a9de345bcc2628dc03d64ca",
+        "method": "GET",
+        "url": "https://vehicle-rc-information-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-information-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # PRIORITY 21-28: MORE NEW ADDED APIS
+    # ═══════════════════════════════════════════════════════════
+    {
+        "priority": 21,
+        "name": "2️⃣1️⃣ Vehicle RC Details MEGA",
+        "description": "MEGA API for detailed RC information with comprehensive vehicle data.",
+        "rapidapi_id": "6a9de3225c43b6d27efda17c",
+        "method": "GET",
+        "url": "https://vehicle-rc-details-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vehicle-rc-details-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 22,
+        "name": "2️⃣2️⃣ Indian RTO Vehicle Details MEGA",
+        "description": "MEGA API for Indian RTO vehicle details with extensive coverage.",
+        "rapidapi_id": "6a9de2a65c43b6d27efda178",
+        "method": "GET",
+        "url": "https://indian-rto-vehicle-details-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "indian-rto-vehicle-details-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 23,
+        "name": "2️⃣3️⃣ RTO Vehicle Information India MEGA",
+        "description": "MEGA API for RTO vehicle information in India.",
+        "rapidapi_id": "6a9de253897c5a41be42dc7b",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india-mega.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india-mega.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 24,
+        "name": "2️⃣4️⃣ RTO Vehicle Information India",
+        "description": "Standard RTO vehicle information API for Indian registration numbers.",
+        "rapidapi_id": "6a9de21b5c43b6d27efda176",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 25,
+        "name": "2️⃣5️⃣ 🇮🇳 RTO Vehicle Information India",
+        "description": "Indian RTO vehicle information API with comprehensive vehicle details.",
+        "rapidapi_id": "6a9de1c8897c5a41be42dc78",
+        "method": "GET",
+        "url": "https://rto-vehicle-information-india.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 26,
+        "name": "2️⃣6️⃣ VAHAN Vehicle Details API",
+        "description": "Official VAHAN API for vehicle registration details and RC information.",
+        "rapidapi_id": "6a9de3a0bcc2628dc03d64cd",
+        "method": "GET",
+        "url": "https://vahan-vehicle-details-api.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "vahan-vehicle-details-api.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 27,
+        "name": "2️⃣7️⃣ RTO Vehicle Details",
+        "description": "Additional RTO vehicle details API with good success rate.",
+        "rapidapi_id": "6a9de2e4d894b121ab85c8d8",
+        "method": "GET",
+        "url": "https://rto-vehicle-details.p.rapidapi.com/rc_v2.php",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-vehicle-details.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"registration_no": None}
+    },
+    {
+        "priority": 28,
+        "name": "2️⃣8️⃣ RTO Challan Information India",
+        "description": "API for fetching challan/e-challan information by vehicle number. (SKIPPED IN AUTO MODE)",
+        "rapidapi_id": "6a9de1e4d894b121ab85c8d3",
+        "method": "POST",
+        "url": "https://rto-challan-information-india.p.rapidapi.com/fetch_challan_info",
+        "headers": {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "rto-challan-information-india.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        },
+        "params_mapping": {"reg_no": None}
+    },
+    
+    # ═══════════════════════════════════════════════════════════
+    # PRIORITY 29-30: FREE APIS (RUN IN AUTO MODE)
+    # ═══════════════════════════════════════════════════════════
+    {
+        "priority": 29,
+        "name": "🆓 2️⃣9️⃣ Free API - Vehicle Info",
+        "description": "FREE API for vehicle information lookup (no API key required). RUNS IN AUTO MODE.",
+        "rapidapi_id": "FREE",
+        "method": "GET",
+        "url": "https://vehicleinfobyterabaap.vercel.app/lookup",
+        "headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        "params_mapping": {"rc": None},
+        "is_free": True
+    },
+    {
+        "priority": 30,
+        "name": "🆓 3️⃣0️⃣ Free API - RTO Search",
+        "description": "FREE RTO search API for vehicle details (no API key required). RUNS IN AUTO MODE.",
+        "rapidapi_id": "FREE",
+        "method": "GET",
+        "url": "https://www.rtosearch.in/api/get_details.php",
+        "headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        },
+        "params_mapping": {"vehicle_no": None},
+        "is_free": True
+    }
+]
+
+def update_api_headers():
+    global RAPIDAPI_KEY
+    for api in WORKING_APIS:
+        if 'headers' in api and 'x-rapidapi-key' in api['headers']:
+            api['headers']['x-rapidapi-key'] = RAPIDAPI_KEY
+
+# ===================================================================
+# 📝 FREE API HTML PARSERS
+# ===================================================================
+
+def parse_rtosearch_html(html_text: str) -> Dict:
+    try:
+        soup = BeautifulSoup(html_text, 'html.parser')
+        result = {}
+        patterns = {
+            'owner_name': ['Owner Name', 'Owner', 'Name'],
+            'registration_no': ['Registration No', 'Vehicle No', 'RC Number'],
+            'registration_date': ['Registration Date', 'Reg Date'],
+            'vehicle_class': ['Vehicle Class', 'Class'],
+            'maker': ['Maker', 'Manufacturer', 'Make'],
+            'model': ['Model'],
+            'fuel_type': ['Fuel Type', 'Fuel'],
+            'engine_no': ['Engine No', 'Engine Number'],
+            'chassis_no': ['Chassis No', 'Chassis Number'],
+            'insurance_company': ['Insurance Company', 'Insurance'],
+            'insurance_upto': ['Insurance Upto', 'Insurance Valid'],
+            'color': ['Color'],
+            'manufactured_year': ['Manufactured Year', 'Year']
+        }
+        
+        text = soup.get_text()
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        for i, line in enumerate(lines):
+            for field, keywords in patterns.items():
+                for keyword in keywords:
+                    if keyword.lower() in line.lower():
+                        if ':' in line:
+                            parts = line.split(':', 1)
+                            if len(parts) == 2:
+                                result[field] = parts[1].strip()
+                        elif i + 1 < len(lines):
+                            result[field] = lines[i + 1].strip()
+                        break
+        
+        tables = soup.find_all('table')
+        for table in tables:
+            rows = table.find_all('tr')
+            for row in rows:
+                cells = row.find_all(['td', 'th'])
+                if len(cells) >= 2:
+                    key = cells[0].get_text().strip()
+                    value = cells[1].get_text().strip()
+                    for field, keywords in patterns.items():
+                        for keyword in keywords:
+                            if keyword.lower() in key.lower():
+                                result[field] = value
+                                break
+        return result
+    except Exception as e:
+        return {"error": f"Parse error: {str(e)}"}
+
+def fetch_with_retry(rc: str, api_config: Dict, max_retries: int = None, is_auto_mode: bool = False) -> Dict:
+    api_name = api_config.get("name", "Unknown")
+    api_url = api_config.get("url", "")
+    
+    if is_auto_mode and is_excluded_from_auto_mode(api_config):
+        print(f"  {Colors.RED}⏭️ Skipping: {api_name} (Excluded from AUTO MODE){Colors.END}")
+        return {"error": "Excluded from AUTO MODE", "skipped": True}
+    
+    if max_retries is None:
+        max_retries = RETRY_CONFIG["max_retries"]
+    
+    if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
+        if rate_tracker.is_rate_limited(api_name, api_url):
+            print(f"  {Colors.RED}⏭️ Skipping: {api_name} (Rate limited - auto-skip){Colors.END}")
+            return {"error": "Rate limited - auto-skipped", "skipped": True}
+    
+    attempt = 0
+    last_error = None
+    original_retries = max_retries
+    
+    while attempt < max_retries:
+        try:
+            params = {}
+            data = None
+            json_data = None
+            
+            if api_config.get("params_mapping"):
+                for param_key, param_value in api_config["params_mapping"].items():
+                    if param_value is None:
+                        params[param_key] = rc
+                    else:
+                        params[param_key] = param_value
+            
+            if api_config.get("is_form"):
+                data = params
+                params = {}
+            
+            if api_config["method"] == "POST" and not api_config.get("is_form"):
+                json_data = params
+                params = {}
+            
+            timeout = 15 + (attempt * 2)
+            
+            headers = api_config.get("headers", {}).copy()
+            if 'User-Agent' not in headers:
+                headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            
+            if api_config["method"] == "GET":
+                response = requests.get(api_config["url"], params=params, headers=headers, timeout=timeout)
+            elif api_config["method"] == "POST":
+                if api_config.get("is_form"):
+                    response = requests.post(api_config["url"], data=data, headers=headers, timeout=timeout)
+                else:
+                    response = requests.post(api_config["url"], json=json_data, headers=headers, timeout=timeout)
+            else:
+                return {"error": f"Unsupported method: {api_config['method']}"}
+            
+            if response.status_code == 503:
+                if attempt >= RETRY_CONFIG["max_503_retries"]:
+                    print(f"  {Colors.RED}❌ {api_name}: Service unavailable (503) - Max retries ({RETRY_CONFIG['max_503_retries']}) reached{Colors.END}")
+                    return {"error": f"HTTP 503 - Service Unavailable (max retries)", "status_code": 503}
+                print(f"  {Colors.YELLOW}⚠️ {api_name}: Service unavailable (503) - Retry {attempt+1}/{RETRY_CONFIG['max_503_retries']}{Colors.END}")
+                delay = calculate_backoff(attempt)
+                print(f"  {Colors.DIM}   Waiting {delay:.1f}s before retry...{Colors.END}")
+                time.sleep(delay)
+                attempt += 1
+                continue
+            
+            if response.status_code == 429:
+                if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
+                    rate_tracker.mark_rate_limited(api_name, api_url)
+                    return {"error": f"HTTP 429 - Rate Limited (Auto-skipped)", "skipped": True}
+                print(f"  {Colors.YELLOW}⚠️ Rate limit (429) - {api_name}{Colors.END}")
+                if RETRY_CONFIG["switch_key_on_429"]:
+                    if rotate_api_key():
+                        attempt += 1
+                        continue
+                delay = calculate_backoff(attempt)
+                print(f"  {Colors.YELLOW}⏳ Waiting {delay:.1f}s before retry (attempt {attempt+1}/{max_retries}){Colors.END}")
+                time.sleep(delay)
+                attempt += 1
+                continue
+            
+            if should_retry(response.status_code, response.text):
+                if response.status_code in RETRY_CONFIG["retry_status_codes"]:
+                    delay = calculate_backoff(attempt)
+                    print(f"  {Colors.YELLOW}⏳ Retrying in {delay:.1f}s (attempt {attempt+1}/{max_retries}){Colors.END}")
+                    time.sleep(delay)
+                    attempt += 1
+                    continue
+                return {"error": f"HTTP {response.status_code}"}
+            
+            if response.status_code == 200:
+                if rate_tracker.is_rate_limited(api_name, api_url):
+                    rate_tracker.remove_from_rate_limit(api_url)
+                    print(f"  {Colors.GREEN}✅ {api_name} recovered from rate limit{Colors.END}")
+                try:
+                    return response.json()
+                except:
+                    return {"raw_text": response.text, "status": "html"}
+            
+            return {"error": f"HTTP {response.status_code}"}
+            
+        except requests.exceptions.Timeout:
+            print(f"  {Colors.YELLOW}⏰ Timeout - {api_name} (attempt {attempt+1}/{max_retries}){Colors.END}")
+            delay = calculate_backoff(attempt)
+            time.sleep(delay)
+            attempt += 1
+            last_error = "Timeout"
+        except requests.exceptions.ConnectionError:
+            print(f"  {Colors.YELLOW}🔌 Connection error - {api_name} (attempt {attempt+1}/{max_retries}){Colors.END}")
+            delay = calculate_backoff(attempt)
+            time.sleep(delay)
+            attempt += 1
+            last_error = "Connection Error"
+        except Exception as e:
+            error_msg = str(e)
+            print(f"  {Colors.YELLOW}⚠️ Error: {error_msg} - {api_name} (attempt {attempt+1}/{max_retries}){Colors.END}")
+            if "rate limit" in error_msg.lower() or "too many" in error_msg.lower():
+                if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
+                    rate_tracker.mark_rate_limited(api_name, api_url)
+                    return {"error": f"Rate Limited - {error_msg}", "skipped": True}
+                if RETRY_CONFIG["switch_key_on_429"]:
+                    if rotate_api_key():
+                        attempt += 1
+                        continue
+            delay = calculate_backoff(attempt)
+            time.sleep(delay)
+            attempt += 1
+            last_error = error_msg
+    
+    return {"error": f"Max retries ({original_retries}) exceeded. Last error: {last_error}"}
+
+def fetch_from_free_api(rc: str, api_config: Dict, is_auto_mode: bool = False) -> Dict:
+    result = fetch_with_retry(rc, api_config, is_auto_mode=is_auto_mode)
+    if "raw_text" in result and result.get("status") == "html":
+        html_text = result["raw_text"]
+        if "rtosearch" in api_config["url"]:
+            parsed = parse_rtosearch_html(html_text)
+            if parsed and not parsed.get("error"):
+                return parsed
+        return {"raw_text": html_text, "status": "html_parsed"}
+    return result
+
+def is_excluded_from_auto_mode(api_config: Dict) -> bool:
+    priority = api_config.get('priority', 0)
+    name = api_config.get('name', '')
+    if priority in AUTO_MODE_EXCLUDED_PRIORITIES:
+        return True
+    for excluded_name in AUTO_MODE_EXCLUDED_NAMES:
+        if excluded_name in name:
+            return True
+    return False
+
+# ===================================================================
+# 🛠️ UTILITY FUNCTIONS
+# ===================================================================
+
+def clear_screen():
+    os.system("cls" if os.name == "nt" else "clear")
+
+def print_banner():
+    banner = f"""
+{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   ███████╗██╗   ██╗███╗   ██╗████████╗██████╗  █████╗     ║
+║   ╚══███╔╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██╔══██╗██╔══██╗    ║
+║     ███╔╝  ╚████╔╝ ██╔██╗ ██║   ██║   ██████╔╝███████║    ║
+║    ███╔╝    ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██╗██╔══██║    ║
+║   ███████╗   ██║   ██║ ╚████║   ██║   ██║  ██║██║  ██║    ║
+║   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝    ║
+║                                                              ║
+║            🔒 ZYNTRASEC SECURITY ADVANCED 🔒                ║
+║         🚗 RC Lookup - AUTO MODE Filter (Skip 1,2,3,5,28) ║
+║                                                              ║
+║   Version: 9.6.0 AUTO-FILTER  Copyright 2026               ║
+║   © 2026 ZYNTRASEC Security. All Rights Reserved.          ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝{Colors.END}
+    """
+    print(banner)
+
+def loading_animation():
+    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    for i in range(15):
+        sys.stdout.write(f"\r  {Colors.CYAN}🔍 Searching{Colors.END} {frames[i % len(frames)]} ")
+        sys.stdout.flush()
+        time.sleep(0.05)
+    print()
+
+def validate_indian_rc(rc: str) -> bool:
+    state_codes = [
+        "AP","AR","AS","BR","CG","GA","GJ","HR","HP","JK","JH",
+        "KA","KL","MP","MH","MN","ML","MZ","NL","OR","PB","RJ",
+        "SK","TN","TR","UP","WB","AN","CH","DN","DD","DL","LD",
+        "PY","TS","TG","LA"
+    ]
+    pattern = r'^(' + '|'.join(state_codes) + r')[-]?\d{1,2}[-]?[A-Z]{1,2}[-]?\d{4}$'
+    return re.match(pattern, rc) is not None
+
+def flatten_dict(obj: Any, parent_key: str = '', sep: str = '_') -> Dict:
+    items = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, (dict, list)):
+                items.extend(flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            new_key = f"{parent_key}{sep}{i}" if parent_key else str(i)
+            if isinstance(v, (dict, list)):
+                items.extend(flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+    return dict(items)
+
+def normalize_data(raw_data: Dict) -> Dict:
+    flat = flatten_dict(raw_data)
+    normalized = {}
+    for key, value in flat.items():
+        clean_key = key
+        for prefix in ['data_', 'result_', 'response_', 'vehicle_', 'rc_']:
+            if key.startswith(prefix):
+                clean_key = key[len(prefix):]
+                break
+        normalized[clean_key] = value
+    normalized['_raw'] = raw_data
+    return normalized
+
+def display_vehicle_info(data: Dict, rc: str, api_name: str, priority: int, key_used: str = ""):
+    state = "Unknown"
+    if rc:
+        clean_rc = re.sub(r'[-]', '', rc)
+        state = clean_rc[:2].upper() if len(clean_rc) >= 2 else "Unknown"
+    
+    print(f"\n{Colors.GREEN}{'='*70}{Colors.END}")
+    print(f"{Colors.CYAN}  🚗 VEHICLE INFORMATION - {rc}{Colors.END}")
+    print(f"{Colors.MAGENTA}  📍 State: {state}{Colors.END}")
+    print(f"{Colors.MAGENTA}  📡 API: {api_name} (Priority #{priority}){Colors.END}")
+    if key_used:
+        print(f"{Colors.MAGENTA}  🔑 Key Used: {key_used}{Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright 2026{Colors.END}")
+    print(f"{Colors.GREEN}{'='*70}{Colors.END}")
+    
+    if "error" in data:
+        print(f"{Colors.RED}  ❌ Error: {data['error']}{Colors.END}")
+        return
+    
+    raw_data = data.pop('_raw', None)
+    
+    field_labels = {
+        'owner_name': '👤 Owner Name',
+        'owner': '👤 Owner Name',
+        'name': '👤 Owner Name',
+        'father_name': '👨‍👦 Father Name',
+        'address': '📍 Address',
+        'city': '🏙️ City',
+        'state': '📍 State',
+        'state_name': '📍 State',
+        'country': '🌍 Country',
+        'phone': '📞 Phone Number',
+        'mobile': '📞 Phone Number',
+        'email': '📧 Email',
+        'rto': '🏢 RTO Office',
+        'registration_no': '📋 Registration No',
+        'vehicle_no': '📋 Registration No',
+        'rc_number': '📋 Registration No',
+        'registration_date': '📅 Registration Date',
+        'vehicle_class': '🚗 Vehicle Class',
+        'maker': '🏭 Maker',
+        'manufacturer': '🏭 Maker',
+        'model': '🔧 Model',
+        'fuel_type': '⛽ Fuel Type',
+        'engine_no': '🔢 Engine Number',
+        'chassis_no': '🔢 Chassis Number',
+        'insurance_company': '🛡️ Insurance Company',
+        'insurance_upto': '📆 Insurance Upto',
+        'puc_valid_upto': '📋 PUC Valid Upto',
+        'road_tax_upto': '💰 Road Tax Upto',
+        'registration_status': '📊 Registration Status',
+        'color': '🎨 Color',
+        'manufactured_year': '🏗️ Manufactured Year'
+    }
+    
+    mapped = {}
+    unmapped = {}
+    for key, value in data.items():
+        if key in field_labels:
+            mapped[key] = value
+        else:
+            found = False
+            for label_key, label_val in field_labels.items():
+                if label_key.lower() in key.lower() or key.lower() in label_key.lower():
+                    mapped[key] = value
+                    found = True
+                    break
+            if not found and not key.startswith('_'):
+                unmapped[key] = value
+    
+    displayed = 0
+    for key, value in mapped.items():
+        label = field_labels.get(key, key.replace('_', ' ').title())
+        display_value = value if value else 'N/A'
+        print(f"  {Colors.YELLOW}{label:<40}{Colors.END} : {Colors.WHITE}{display_value}{Colors.END}")
+        displayed += 1
+    
+    if unmapped:
+        print(f"\n{Colors.CYAN}{'─'*70}{Colors.END}")
+        print(f"{Colors.CYAN}  📌 Additional Data:{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*70}{Colors.END}")
+        for key, value in unmapped.items():
+            if key == '_raw':
+                continue
+            display_value = value if value else 'N/A'
+            label = key.replace('_', ' ').title()
+            print(f"  {Colors.DIM}{label:<40}{Colors.END} : {Colors.WHITE}{display_value}{Colors.END}")
+            displayed += 1
+    
+    if displayed == 0:
+        print(f"{Colors.RED}  No vehicle data found{Colors.END}")
+    
+    if raw_data:
+        print(f"\n{Colors.CYAN}{'─'*70}{Colors.END}")
+        print(f"{Colors.CYAN}  📄 Raw API Response:{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*70}{Colors.END}")
+        raw_json = json.dumps(raw_data, indent=2, ensure_ascii=False)
+        if len(raw_json) > 2000:
+            print(f"{Colors.DIM}{raw_json[:2000]}...{Colors.END}")
+            print(f"{Colors.DIM}  (truncated, full data in JSON file){Colors.END}")
+        else:
+            print(f"{Colors.DIM}{raw_json}{Colors.END}")
+    
+    print(f"{Colors.GREEN}{'='*70}{Colors.END}")
+    print(f"{Colors.CYAN}  📡 Data from: {api_name}{Colors.END}")
+    print(f"{Colors.MAGENTA}  🔒 ZYNTRASEC SECURITY | Copyright 2026 | All Rights Reserved{Colors.END}")
+
+def save_results(rc: str, data: Dict, raw: Dict, api_name: str, priority: int, key_used: str = "") -> str:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ZYNTRASEC_{rc}_{timestamp}.json"
+    data_to_save = {
+        "normalized": data,
+        "raw": raw,
+        "metadata": {
+            'tool': 'ZYNTRASEC Security Menu',
+            'version': '9.6.0 AUTO-FILTER',
+            'timestamp': datetime.now().isoformat(),
+            'rc_checked': rc,
+            'api_used': api_name,
+            'priority': priority,
+            'key_used': key_used,
+            'licensed_to': 'ZYNTRASEC SECURITY',
+            'expiry_date': '2030-12-31',
+            'apis_total': len(WORKING_APIS)
+        }
+    }
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data_to_save, f, indent=4, ensure_ascii=False)
+    print(f"\n  💾 Results saved to: {filename}")
+    return filename
+
+# ===================================================================
+# 🔍 RC LOOKUP WITH AUTO MODE FILTER
+# ===================================================================
+
+def rc_lookup():
+    clear_screen()
+    print_banner()
+    print(f"{Colors.CYAN}  🔍 Enter Indian RC Number{Colors.END}")
+    print(f"{Colors.YELLOW}  📝 Format: GJ-05-VC-1234 or GJ05VC1234{Colors.END}")
+    print(f"{Colors.DIM}  💡 Press Enter to go back to menu{Colors.END}\n")
+    
+    keys_data, active = get_all_keys_with_status()
+    active_info = keys_data.get(active, {})
+    active_key = active_info.get('key', '')
+    active_name = active_info.get('name', active)
+    if active_key:
+        masked = active_key[:8] + "..." + active_key[-4:]
+        print(f"  {Colors.DIM}🔑 Active Key: {masked} ({active_name}){Colors.END}")
+    valid_count = sum(1 for k, v in keys_data.items() if v['key'])
+    print(f"  {Colors.DIM}📋 Total Keys: {valid_count}/3 configured{Colors.END}")
+    print(f"  {Colors.DIM}📡 Total APIs: {len(WORKING_APIS)}{Colors.END}")
+    print(f"  {Colors.DIM}🚫 AUTO MODE Skips: Priority 1,2,3,5,28{Colors.END}")
+    print(f"  {Colors.DIM}✅ AUTO MODE Runs: Priority 4,6-27,29-30 (Including Free APIs){Colors.END}")
+    print()
+    
+    while True:
+        rc = input(f"{Colors.GREEN}  🚗 RC Number (or Enter to go back): {Colors.END}").strip().upper()
+        if not rc:
+            return
+        
+        if not validate_indian_rc(rc):
+            print(f"{Colors.YELLOW}  ⚠️ Not a valid Indian RC format{Colors.END}")
+            confirm = input("  Continue anyway? (y/n): ").strip().lower()
+            if confirm != 'y':
+                continue
+        
+        rate_tracker.reset_all()
+        
+        print(f"\n{Colors.CYAN}  ╔══════════════════════════════════════════════════════════════╗")
+        print(f"  ║                    📋 API SELECTION MODE                            ║")
+        print(f"  ╠═══════════════════════════════════════════════════════════════════╣")
+        print(f"  ║  {Colors.GREEN}1{Colors.END} 🔄 AUTO MODE - Skip Priority 1,2,3,5,28              ║")
+        print(f"  ║  {Colors.GREEN}2{Colors.END} 🎯 MANUAL SELECT - Choose specific API                 ║")
+        print(f"  ║  {Colors.GREEN}3{Colors.END} 📊 RANGE SELECT - Choose priority range               ║")
+        print(f"  ║  {Colors.GREEN}4{Colors.END} ⭐ TOP 5 ONLY - Try only top 5 priority APIs           ║")
+        print(f"  ║  {Colors.GREEN}5{Colors.END} 🆓 FREE APIS ONLY - Try only free APIs                ║")
+        print(f"  ║  {Colors.GREEN}6{Colors.END} 🔄 AUTO-KEY + RETRY - Try all keys with retry        ║")
+        print(f"  ║  {Colors.GREEN}7{Colors.END} 📊 SHOW RATE LIMITED APIS                            ║")
+        print(f"  ╚═══════════════════════════════════════════════════════════════════╝{Colors.END}")
+        
+        mode = input(f"{Colors.CYAN}  👉 Select mode (1-7): {Colors.END}").strip()
+        
+        apis_to_try = []
+        use_multi_key = False
+        is_auto_mode = False
+        
+        if mode == '1':
+            apis_to_try = WORKING_APIS
+            is_auto_mode = True
+            excluded_count = len(AUTO_MODE_EXCLUDED_PRIORITIES)
+            print(f"\n  {Colors.GREEN}✅ AUTO MODE: Will try {len(apis_to_try) - excluded_count} APIs{Colors.END}")
+            print(f"  {Colors.GREEN}   ✅ Includes: Priority 29-30 (Free APIs){Colors.END}")
+            print(f"  {Colors.RED}   ❌ Skips: Priority 1,2,3,5,28{Colors.END}")
+        
+        elif mode == '2':
+            print(f"\n{Colors.CYAN}  📋 AVAILABLE APIs - Choose by Priority Number:{Colors.END}")
+            print(f"  {'─'*70}")
+            print(f"  {Colors.YELLOW}  Priority │ Method │ API Name{Colors.END}")
+            print(f"  {'─'*70}")
+            
+            for api in WORKING_APIS:
+                priority = api.get('priority', '?')
+                method = api.get('method', 'GET')
+                name = api.get('name', 'Unknown')
+                is_free = api.get('is_free', False)
+                free_tag = " 🆓" if is_free else ""
+                is_limited = rate_tracker.is_rate_limited(name, api.get('url', ''))
+                limited_tag = " 🚫" if is_limited else ""
+                is_excluded = is_excluded_from_auto_mode(api)
+                excluded_tag = " ⛔" if is_excluded else ""
+                
+                if priority <= 5:
+                    color = Colors.GREEN
+                elif priority <= 10:
+                    color = Colors.CYAN
+                elif priority <= 15:
+                    color = Colors.YELLOW
+                else:
+                    color = Colors.WHITE
+                if is_limited:
+                    color = Colors.RED
+                
+                print(f"  {color}{priority:>8} │ {method:<6} │ {name} {free_tag}{limited_tag}{excluded_tag}{Colors.END}")
+            
+            print(f"  {'─'*70}")
+            print(f"\n  {Colors.CYAN}👉 Enter priority number of the API you want to use:{Colors.END}")
+            choice = input(f"\n  {Colors.GREEN}🎯 Enter Priority Number: {Colors.END}").strip()
+            
+            try:
+                priority_num = int(choice)
+                selected = None
+                for api in WORKING_APIS:
+                    if api.get('priority') == priority_num:
+                        selected = api
+                        break
+                if selected:
+                    apis_to_try = [selected]
+                    print(f"\n  {Colors.GREEN}✅ SELECTED: {selected['name']}{Colors.END}")
+                else:
+                    print(f"\n  {Colors.RED}❌ Invalid priority number!{Colors.END}")
+                    input(f"\n{Colors.DIM}Press Enter to retry...{Colors.END}")
+                    continue
+            except ValueError:
+                print(f"\n  {Colors.RED}❌ Invalid input! Please enter a number.{Colors.END}")
+                input(f"\n{Colors.DIM}Press Enter to retry...{Colors.END}")
+                continue
+        
+        elif mode == '3':
+            range_input = input(f"{Colors.CYAN}  👉 Enter range (e.g., 1-10 or 1,3,5): {Colors.END}").strip()
+            if '-' in range_input:
+                parts = range_input.split('-')
+                try:
+                    start = int(parts[0].strip())
+                    end = int(parts[1].strip())
+                    for api in WORKING_APIS:
+                        p = api.get('priority', 0)
+                        if start <= p <= end:
+                            if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
+                                apis_to_try.append(api)
+                    print(f"\n  {Colors.GREEN}✅ Selected {len(apis_to_try)} APIs (Priority {start}-{end}){Colors.END}")
+                except:
+                    print(f"{Colors.RED}  ❌ Invalid range format!{Colors.END}")
+                    input(f"\n{Colors.DIM}Press Enter to retry...{Colors.END}")
+                    continue
+            else:
+                try:
+                    nums = [int(x.strip()) for x in range_input.split(',')]
+                    for api in WORKING_APIS:
+                        if api.get('priority') in nums:
+                            if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
+                                apis_to_try.append(api)
+                    print(f"\n  {Colors.GREEN}✅ Selected {len(apis_to_try)} APIs{Colors.END}")
+                except:
+                    print(f"{Colors.RED}  ❌ Invalid input!{Colors.END}")
+                    input(f"\n{Colors.DIM}Press Enter to retry...{Colors.END}")
+                    continue
+        
+        elif mode == '4':
+            for api in WORKING_APIS:
+                if api.get('priority', 0) <= 5:
+                    if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
+                        apis_to_try.append(api)
+            print(f"\n  {Colors.GREEN}✅ TOP 5 MODE: Will try 5 best priority APIs{Colors.END}")
+            for api in apis_to_try:
+                print(f"     {Colors.CYAN}{api.get('priority')}. {api.get('name')}{Colors.END}")
+        
+        elif mode == '5':
+            for api in WORKING_APIS:
+                if api.get('is_free', False):
+                    if not rate_tracker.is_rate_limited(api.get('name', ''), api.get('url', '')):
+                        apis_to_try.append(api)
+            print(f"\n  {Colors.GREEN}✅ FREE APIS ONLY: Will try {len(apis_to_try)} free APIs{Colors.END}")
+            for api in apis_to_try:
+                print(f"     {Colors.CYAN}{api.get('priority')}. {api.get('name')}{Colors.END}")
+        
+        elif mode == '6':
+            apis_to_try = WORKING_APIS
+            use_multi_key = True
+            valid_keys = get_all_valid_keys()
+            print(f"\n  {Colors.GREEN}✅ AUTO-KEY + RETRY MODE: Will try all {len(apis_to_try)} APIs with {len(valid_keys)} keys{Colors.END}")
+            for key_id, key_value in valid_keys:
+                keys_data, _ = get_all_keys_with_status()
+                name = keys_data.get(key_id, {}).get('name', key_id)
+                masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+                print(f"     {Colors.CYAN}{key_id}{Colors.END}: {masked} {Colors.DIM}({name}){Colors.END}")
+        
+        elif mode == '7':
+            limited_count = rate_tracker.get_limited_count()
+            if limited_count == 0:
+                print(f"\n  {Colors.GREEN}✅ No APIs are currently rate limited{Colors.END}")
+            else:
+                print(f"\n  {Colors.YELLOW}🚫 Rate Limited APIs ({limited_count}):{Colors.END}")
+                for name in rate_tracker.get_limited_list():
+                    print(f"     {Colors.RED}🚫 {name}{Colors.END}")
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            continue
+        
+        else:
+            print(f"{Colors.RED}  ❌ Invalid mode!{Colors.END}")
+            input(f"\n{Colors.DIM}Press Enter to retry...{Colors.END}")
+            continue
+        
+        if not apis_to_try:
+            print(f"{Colors.RED}  ❌ No APIs selected! (All may be rate limited){Colors.END}")
+            input(f"\n{Colors.DIM}Press Enter to retry...{Colors.END}")
+            continue
+        
+        print(f"\n  🔄 Searching for {rc} with {len(apis_to_try)} API(s)...")
+        if use_multi_key:
+            print(f"  🔑 Will auto-retry with all available keys\n")
+        print(f"  📊 503 Retry limit: {RETRY_CONFIG['max_503_retries']} per API\n")
+        loading_animation()
+        
+        data = None
+        raw_data = None
+        used_api = None
+        used_priority = None
+        used_key = None
+        attempted = 0
+        start_time = time.time()
+        skipped_count = 0
+        excluded_count = 0
+        service_unavailable_count = 0
+        
+        for api_config in apis_to_try:
+            attempted += 1
+            api_name = api_config["name"]
+            priority = api_config.get('priority', attempted)
+            is_free = api_config.get('is_free', False)
+            
+            if is_auto_mode and is_excluded_from_auto_mode(api_config):
+                excluded_count += 1
+                print(f"  {Colors.DIM}⏭️ [{attempted}/{len(apis_to_try)}] Skipping {api_name} (Excluded from AUTO MODE){Colors.END}")
+                continue
+            
+            if is_auto_mode and RETRY_CONFIG["auto_skip_429"]:
+                if rate_tracker.is_rate_limited(api_name, api_config.get('url', '')):
+                    skipped_count += 1
+                    print(f"  {Colors.DIM}⏭️ [{attempted}/{len(apis_to_try)}] Skipping {api_name} (rate limited){Colors.END}")
+                    continue
+            
+            if use_multi_key:
+                print(f"  ⏳ [{attempted}/{len(apis_to_try)}] Trying {api_name} with ALL keys...")
+                result = rc_lookup_with_auto_retry(rc, api_config, is_auto_mode)
+                if "error" not in result and len(result) > 0 and "skipped" not in result:
+                    if "_key_used" in result:
+                        key_used = result.pop('_key_used', 'unknown')
+                        keys_data, _ = get_all_keys_with_status()
+                        key_name = keys_data.get(key_used, {}).get('name', key_used)
+                        used_key = f"{key_used} ({key_name})"
+                    else:
+                        used_key = "Default"
+                    raw_data = result
+                    data = normalize_data(result)
+                    used_api = api_name
+                    used_priority = priority
+                    print(f"  {Colors.GREEN}✅ Success! (Priority #{priority}){Colors.END}")
+                    break
+                else:
+                    error = result.get("error", "No data") if isinstance(result, dict) else "Invalid"
+                    if result.get("skipped", False):
+                        print(f"  {Colors.RED}⏭️ {api_name} rate limited - skipped{Colors.END}")
+                    elif "503" in error or "Service Unavailable" in error:
+                        service_unavailable_count += 1
+                        print(f"  {Colors.RED}❌ {api_name}: Service unavailable after {RETRY_CONFIG['max_503_retries']} retries{Colors.END}")
+                    else:
+                        print(f"  {Colors.RED}❌ All keys failed: {error}{Colors.END}")
+                    time.sleep(0.3)
+            else:
+                print(f"  ⏳ [{attempted}/{len(apis_to_try)}] Trying {api_name}...")
+                if is_free:
+                    result = fetch_from_free_api(rc, api_config, is_auto_mode)
+                else:
+                    result = fetch_with_retry(rc, api_config, is_auto_mode=is_auto_mode)
+                if "error" not in result and len(result) > 0 and "skipped" not in result:
+                    raw_data = result
+                    data = normalize_data(result)
+                    used_api = api_name
+                    used_priority = priority
+                    active_id = get_active_key_id()
+                    keys_data, _ = get_all_keys_with_status()
+                    active_name = keys_data.get(active_id, {}).get('name', active_id)
+                    used_key = active_id + " (" + active_name + ")"
+                    print(f"  {Colors.GREEN}✅ Success! (Priority #{priority}){Colors.END}")
+                    break
+                else:
+                    error = result.get("error", "No data") if isinstance(result, dict) else "Invalid"
+                    if result.get("skipped", False):
+                        print(f"  {Colors.RED}⏭️ {api_name} rate limited - skipped{Colors.END}")
+                    elif "503" in error or "Service Unavailable" in error:
+                        service_unavailable_count += 1
+                        print(f"  {Colors.RED}❌ {api_name}: Service unavailable after {RETRY_CONFIG['max_503_retries']} retries{Colors.END}")
+                    else:
+                        print(f"  {Colors.RED}❌ {error}{Colors.END}")
+                    time.sleep(0.3)
+        
+        elapsed_time = time.time() - start_time
+        if excluded_count > 0:
+            print(f"\n  {Colors.DIM}⛔ Excluded {excluded_count} APIs (Priority 1,2,3,5,28 from AUTO MODE){Colors.END}")
+        if skipped_count > 0:
+            print(f"  {Colors.YELLOW}⏭️ Skipped {skipped_count} rate-limited APIs{Colors.END}")
+        if service_unavailable_count > 0:
+            print(f"  {Colors.YELLOW}🔧 {service_unavailable_count} APIs returned 503 (retried {RETRY_CONFIG['max_503_retries']} times each){Colors.END}")
+        
+        if data is not None:
+            print(f"\n  ⏱️ Time taken: {elapsed_time:.2f} seconds")
+            display_vehicle_info(data, rc, used_api, used_priority, used_key)
+            save_results(rc, data, raw_data if raw_data else {}, used_api, used_priority, used_key)
+            print(f"\n  {Colors.GREEN}✅ All data fetched successfully!{Colors.END}")
+        else:
+            print(f"\n  {Colors.RED}❌ All {len(apis_to_try)} APIs failed after retries!{Colors.END}")
+            print(f"  {Colors.YELLOW}💡 Try mode 5 (Free APIs Only) or check your internet{Colors.END}")
+            if rate_tracker.get_limited_count() > 0:
+                print(f"  {Colors.YELLOW}🚫 {rate_tracker.get_limited_count()} APIs are rate limited (60s cooldown){Colors.END}")
+            if service_unavailable_count > 0:
+                print(f"  {Colors.YELLOW}🔧 {service_unavailable_count} APIs were unavailable (503){Colors.END}")
+        
+        print("\n  Press Enter to continue or type 'menu' to go back")
+        choice = input().strip().lower()
+        if choice == 'menu':
+            return
+
+def rc_lookup_with_auto_retry(rc: str, api_config: Dict, is_auto_mode: bool = False) -> Dict:
+    valid_keys = get_all_valid_keys()
+    if not valid_keys:
+        return {"error": "No API keys configured!"}
+    
+    active_key_id = get_active_key_id()
+    ordered_keys = []
+    for key_id, key_value in valid_keys:
+        if key_id == active_key_id:
+            ordered_keys.insert(0, (key_id, key_value))
+        else:
+            ordered_keys.append((key_id, key_value))
+    
+    for key_index, (key_id, key_value) in enumerate(ordered_keys):
+        global RAPIDAPI_KEY
+        current_key = RAPIDAPI_KEY
+        RAPIDAPI_KEY = key_value
+        if 'headers' in api_config and 'x-rapidapi-key' in api_config['headers']:
+            api_config['headers']['x-rapidapi-key'] = key_value
+        key_name = get_key_name(key_id)
+        print(f"  {Colors.CYAN}🔑 Trying key: {key_id} ({key_name}){Colors.END}")
+        result = fetch_with_retry(rc, api_config, is_auto_mode=is_auto_mode)
+        RAPIDAPI_KEY = current_key
+        if 'headers' in api_config and 'x-rapidapi-key' in api_config['headers']:
+            api_config['headers']['x-rapidapi-key'] = current_key
+        if "error" not in result or "status" in result:
+            if "skipped" not in result:
+                result['_key_used'] = key_id
+            return result
+        error_msg = result.get("error", "Unknown error")
+        if result.get("skipped", False):
+            return result
+        if any(keyword in error_msg.lower() for keyword in ['429', 'rate limit', 'too many', 'quota']):
+            print(f"  {Colors.YELLOW}⚠️ Rate limit on {key_id} - Trying next key{Colors.END}")
+            continue
+        if any(keyword in error_msg.lower() for keyword in ['503', 'service unavailable']):
+            print(f"  {Colors.YELLOW}⚠️ Service unavailable on {key_id} - Trying next key{Colors.END}")
+            continue
+        print(f"  {Colors.YELLOW}⚠️ {key_id} failed: {error_msg}{Colors.END}")
+        continue
+    
+    return {"error": "All keys failed after retries"}
+
+# ===================================================================
+# 🚀 MAIN MENU
+# ===================================================================
+
+def show_menu():
+    limited_count = rate_tracker.get_limited_count()
+    limited_info = f" (🚫{limited_count})" if limited_count > 0 else ""
+    
+    print(f"\n{Colors.CYAN}  ╔══════════════════════════════════════════════════════════════╗")
+    print(f"  ║                        📋 MAIN MENU                                 ║")
+    print(f"  ╠═══════════════════════════════════════════════════════════════════╣")
+    print(f"  ║  {Colors.GREEN}1{Colors.END} 🔍 RC Lookup ({len(WORKING_APIS)} APIs){limited_info}                    ║")
+    print(f"  ║  {Colors.GREEN}2{Colors.END} 📄 Generate License File                          ║")
+    print(f"  ║  {Colors.GREEN}3{Colors.END} 🔐 Show Security Status                          ║")
+    print(f"  ║  {Colors.GREEN}4{Colors.END} ⚙️  Show System Info                             ║")
+    print(f"  ║  {Colors.GREEN}5{Colors.END} 🧹 Clear Screen                                  ║")
+    print(f"  ║  {Colors.GREEN}6{Colors.END} 📦 Install/Update Dependencies                   ║")
+    print(f"  ║  {Colors.GREEN}7{Colors.END} 📊 Show API Priority List                        ║")
+    print(f"  ║  {Colors.GREEN}8{Colors.END} 🔑 Manage API Keys                              ║")
+    print(f"  ║  {Colors.GREEN}9{Colors.END} 🔄 Quick Switch Keys                             ║")
+    print(f"  ║  {Colors.RED}0{Colors.END} 🚪 Exit                                            ║")
+    print(f"  ╚═══════════════════════════════════════════════════════════════════╝{Colors.END}")
+
+def show_priority_list():
+    print(f"\n{Colors.CYAN}  📊 API PRIORITY LIST ({len(WORKING_APIS)} APIs){Colors.END}")
+    print(f"  {'─'*70}")
+    print(f"  {Colors.YELLOW}Rank  Priority  Method  Name{Colors.END}")
+    print(f"  {'─'*70}")
+    
+    for api in WORKING_APIS:
+        rank = api.get('priority', '?')
+        name = api.get('name', 'Unknown')
+        method = api.get('method', 'GET')
+        is_free = api.get('is_free', False)
+        free_tag = " 🆓" if is_free else ""
+        is_limited = rate_tracker.is_rate_limited(name, api.get('url', ''))
+        limited_tag = " 🚫" if is_limited else ""
+        is_excluded = is_excluded_from_auto_mode(api)
+        excluded_tag = " ⛔" if is_excluded else ""
+        
+        if rank <= 5:
+            color = Colors.GREEN
+        elif rank <= 10:
+            color = Colors.CYAN
+        elif rank <= 15:
+            color = Colors.YELLOW
+        else:
+            color = Colors.WHITE
+        if is_limited:
+            color = Colors.RED
+        
+        # Highlight priority 28 as excluded
+        if rank == 28:
+            color = Colors.RED
+        
+        print(f"  {color}{rank:<4}    {method:<6} {name}{free_tag}{limited_tag}{excluded_tag}{Colors.END}")
+    
+    print(f"  {'─'*70}")
+    print(f"  {Colors.GREEN}🟢 1-5: Best Priority (EXCLUDED from AUTO MODE){Colors.END}")
+    print(f"  {Colors.CYAN}🟦 6-10: Good Priority{Colors.END}")
+    print(f"  {Colors.YELLOW}🟨 11-15: Medium Priority{Colors.END}")
+    print(f"  {Colors.WHITE}⬜ 16-20: Lower Priority{Colors.END}")
+    print(f"  {Colors.WHITE}⬜ 21-27: Additional APIs{Colors.END}")
+    print(f"  {Colors.RED}🟥 28: RTO Challan (EXCLUDED from AUTO MODE){Colors.END}")
+    print(f"  {Colors.MAGENTA}🟪 29-30: Free APIs (RUN in AUTO MODE){Colors.END}")
+    print(f"  {Colors.RED}🚫 Rate Limited APIs (Auto-skipped for 60s){Colors.END}")
+
+def show_security_status():
+    print(f"\n{Colors.CYAN}  🔒 SECURITY STATUS{Colors.END}")
+    print(f"  {'─'*50}")
+    
+    license_manager = SecureLicenseManager()
+    license_info = license_manager.get_license_info()
+    
+    if license_info.get('status') == 'valid':
+        print(f"  {Colors.GREEN}✅{Colors.END} License: Valid")
+        print(f"  {Colors.CYAN}📅{Colors.END} Expiry: {license_info.get('expiry', 'Unknown')}")
+        print(f"  {Colors.CYAN}📌{Colors.END} Version: {license_info.get('version', 'Unknown')}")
+        print(f"  {Colors.CYAN}🔑{Colors.END} Key: {license_info.get('key_preview', 'N/A')}")
+    else:
+        print(f"  {Colors.RED}❌{Colors.END} License: {'Not found' if license_info.get('status') == 'not_found' else 'Invalid'}")
+    
+    mac = license_manager._get_mac_address()
+    if mac:
+        print(f"  {Colors.GREEN}✅{Colors.END} MAC Address: {mac}")
+    else:
+        print(f"  {Colors.RED}❌{Colors.END} MAC Address: Not detected")
+    
+    try:
+        current = datetime.now().date()
+        expiry = datetime.strptime("2030-12-31", "%Y-%m-%d").date()
+        if current <= expiry:
+            days = (expiry - current).days
+            print(f"  {Colors.GREEN}✅{Colors.END} Date Expiry: 2030-12-31 ({days} days left)")
+        else:
+            print(f"  {Colors.RED}❌{Colors.END} Date Expiry: EXPIRED")
+    except:
+        print(f"  {Colors.YELLOW}⚠️{Colors.END} Date Expiry: Check failed")
+    
+    print(f"  {Colors.GREEN}✅{Colors.END} APIs: {len(WORKING_APIS)} available")
+    free_count = sum(1 for api in WORKING_APIS if api.get('is_free', False))
+    print(f"  {Colors.CYAN}🆓{Colors.END} Free APIs: {free_count} available")
+    
+    rapidapi_count = sum(1 for api in WORKING_APIS if api.get('rapidapi_id') and api.get('rapidapi_id') != 'FREE' and api.get('rapidapi_id') != 'N/A')
+    print(f"  {Colors.CYAN}📡{Colors.END} RapidAPI Endpoints: {rapidapi_count}")
+    
+    limited_count = rate_tracker.get_limited_count()
+    if limited_count > 0:
+        print(f"  {Colors.RED}🚫{Colors.END} Rate Limited APIs: {limited_count} (auto-skipped)")
+    else:
+        print(f"  {Colors.GREEN}✅{Colors.END} Rate Limited APIs: None")
+    
+    print(f"  {Colors.DIM}⛔{Colors.END} AUTO MODE Excluded: Priority 1,2,3,5,28")
+    print(f"  {Colors.MAGENTA}✅{Colors.END} AUTO MODE Includes: Priority 29-30 (Free APIs)")
+    print(f"  {Colors.CYAN}🔒{Colors.END} Encryption: AES-256 with PBKDF2")
+    print(f"  {'─'*50}")
+
+def show_system_info():
+    print(f"\n{Colors.CYAN}  ⚙️ SYSTEM INFORMATION{Colors.END}")
+    print(f"  {'─'*50}")
+    print(f"  Python Version: {sys.version.split()[0]}")
+    print(f"  OS: {platform.system()} {platform.release()}")
+    print(f"  Machine: {platform.machine()}")
+    print(f"  Script Version: 9.6.0 AUTO-FILTER")
+    print(f"  Copyright: © 2026 ZYNTRASEC Security. All Rights Reserved.")
+    license_manager = SecureLicenseManager()
+    mac = license_manager._get_mac_address()
+    print(f"  MAC Address: {mac or 'Unknown'}")
+    print(f"  License File: {'Present' if os.path.exists('license.lic') else 'Not found'}")
+    print(f"  Expiry Date: 2030-12-31")
+    print(f"  Total APIs: {len(WORKING_APIS)}")
+    free_count = sum(1 for api in WORKING_APIS if api.get('is_free', False))
+    print(f"  Free APIs: {free_count}")
+    print(f"  RapidAPI Endpoints: {sum(1 for api in WORKING_APIS if api.get('rapidapi_id') and api.get('rapidapi_id') != 'FREE' and api.get('rapidapi_id') != 'N/A')}")
+    print(f"  AUTO MODE Excluded: Priority 1,2,3,5,28")
+    print(f"  AUTO MODE Includes: Priority 4,6-27,29-30")
+    print(f"  Encryption: AES-256 with PBKDF2")
+    print(f"  {'─'*50}")
+
+# ===================================================================
+# 🔑 API KEY MANAGEMENT FUNCTIONS (Menu)
+# ===================================================================
+
+def show_api_key_menu():
+    print(f"\n{Colors.CYAN}  ╔══════════════════════════════════════════════════════════════╗")
+    print(f"  ║                  🔑 COMPLETE API KEYS MANAGEMENT                    ║")
+    print(f"  ╠═══════════════════════════════════════════════════════════════════╣")
+    
+    keys_data, active = get_all_keys_with_status()
+    
+    print(f"  ║  {Colors.YELLOW}📋 SAVED KEYS:{Colors.END}                                             ║")
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        is_active = info['active']
+        
+        if key_value:
+            masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+            status = "⭐ ACTIVE" if is_active else "  "
+            name_display = f"({name})" if name != key_id else ""
+            print(f"  ║    {Colors.GREEN}{key_id}{Colors.END}: {masked} {status} {Colors.DIM}{name_display}{Colors.END}          ║")
+        else:
+            print(f"  ║    {Colors.RED}{key_id}{Colors.END}: [EMPTY] {Colors.DIM}({name}){Colors.END}                                ║")
+    
+    print(f"  ╠═══════════════════════════════════════════════════════════════════╣")
+    print(f"  ║  {Colors.CYAN}📝 ADD / UPDATE KEYS:{Colors.END}                                        ║")
+    print(f"  ║  {Colors.GREEN}1{Colors.END} ➕ Add/Update Key 1 (Primary Key)                       ║")
+    print(f"  ║  {Colors.GREEN}2{Colors.END} ➕ Add/Update Key 2 (Backup Key 1)                     ║")
+    print(f"  ║  {Colors.GREEN}3{Colors.END} ➕ Add/Update Key 3 (Backup Key 2)                     ║")
+    print(f"  ║                                                                 ║")
+    print(f"  ║  {Colors.CYAN}🔧 MANAGE KEYS:{Colors.END}                                           ║")
+    print(f"  ║  {Colors.GREEN}4{Colors.END} ⭐ Select/Activate Key                                ║")
+    print(f"  ║  {Colors.GREEN}5{Colors.END} 🗑️  Remove/Delete a Key                                 ║")
+    print(f"  ║  {Colors.GREEN}6{Colors.END} 🔄 Quick Switch Keys (Cycle)                          ║")
+    print(f"  ║                                                                 ║")
+    print(f"  ║  {Colors.CYAN}🧪 TEST KEYS:{Colors.END}                                            ║")
+    print(f"  ║  {Colors.GREEN}7{Colors.END} 🧪 Test All Keys                                     ║")
+    print(f"  ║  {Colors.GREEN}8{Colors.END} 🧪 Test Current/Active Key                           ║")
+    print(f"  ║                                                                 ║")
+    print(f"  ║  {Colors.CYAN}ℹ️  INFO:{Colors.END}                                                 ║")
+    print(f"  ║  {Colors.GREEN}9{Colors.END} 📊 Show Full Keys (Complete)                         ║")
+    print(f"  ║  {Colors.GREEN}10{Colors.END}✏️  Rename/Set Key Name                                ║")
+    print(f"  ║                                                                 ║")
+    print(f"  ║  {Colors.RED}0{Colors.END} ↩️  Back to Main Menu                                    ║")
+    print(f"  ╚═══════════════════════════════════════════════════════════════════╝{Colors.END}")
+
+def handle_api_key_menu():
+    while True:
+        clear_screen()
+        print_banner()
+        show_api_key_menu()
+        choice = input(f"\n{Colors.CYAN}  👉 Enter your choice (0-10): {Colors.END}").strip()
+        if choice == '1':
+            add_update_key('key1')
+        elif choice == '2':
+            add_update_key('key2')
+        elif choice == '3':
+            add_update_key('key3')
+        elif choice == '4':
+            select_active_key()
+        elif choice == '5':
+            remove_key_function()
+        elif choice == '6':
+            quick_switch_keys()
+        elif choice == '7':
+            test_all_keys()
+        elif choice == '8':
+            test_current_key()
+        elif choice == '9':
+            show_full_keys()
+        elif choice == '10':
+            rename_key()
+        elif choice == '0':
+            return
+        else:
+            print(f"{Colors.RED}  ❌ Invalid choice! Please enter 0-10.{Colors.END}")
+            time.sleep(1)
+
+def add_update_key(key_id):
+    print(f"\n{Colors.CYAN}  📝 ADD/UPDATE {key_id.upper()}{Colors.END}")
+    print(f"  {'─'*50}")
+    
+    keys_data, active = get_all_keys_with_status()
+    current_info = keys_data.get(key_id, {})
+    current = current_info.get('key', '')
+    current_name = current_info.get('name', key_id)
+    
+    print(f"  Current {key_id}:", end=" ")
+    if current:
+        masked = current[:8] + "..." + current[-4:] if len(current) > 12 else "****"
+        print(f"{Colors.GREEN}{masked}{Colors.END} ({current_name})")
+    else:
+        print(f"{Colors.RED}[EMPTY]{Colors.END} ({current_name})")
+    
+    print(f"\n  {Colors.YELLOW}📝 Enter new API key for {key_id}:{Colors.END}")
+    new_key = input(f"  🔑 New Key: ").strip()
+    if not new_key:
+        print(f"  {Colors.RED}❌ No key entered!{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    
+    print(f"\n  {Colors.DIM}💡 Enter a custom name for this key (optional):{Colors.END}")
+    name = input(f"  📛 Name (press Enter to keep current): ").strip()
+    if not name:
+        name = None
+    
+    print(f"\n  🔄 Testing key...")
+    is_valid, message = test_api_key(new_key)
+    if is_valid:
+        print(f"  {Colors.GREEN}✅ Key test passed! ({message}){Colors.END}")
+    else:
+        print(f"  {Colors.YELLOW}⚠️ {message}{Colors.END}")
+    
+    confirm = input(f"\n  💾 Save this key? (y/n): ").strip().lower()
+    if confirm == 'y':
+        if update_key(key_id, new_key, name):
+            global RAPIDAPI_KEY
+            if active == key_id:
+                RAPIDAPI_KEY = new_key
+                update_api_headers()
+            print(f"  {Colors.GREEN}✅ {key_id} updated successfully!{Colors.END}")
+            if name:
+                print(f"  📛 Name set to: {name}")
+        else:
+            print(f"  {Colors.RED}❌ Failed to save key!{Colors.END}")
+    else:
+        print(f"  {Colors.YELLOW}⚠️ Key not saved.{Colors.END}")
+    
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def select_active_key():
+    print(f"\n{Colors.CYAN}  ⭐ SELECT/ACTIVATE KEY{Colors.END}")
+    print(f"  {'─'*50}")
+    
+    keys_data, active = get_all_keys_with_status()
+    print(f"\n  {Colors.YELLOW}📋 Available Keys:{Colors.END}")
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        if key_value:
+            masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+            status = "⭐ ACTIVE" if key_id == active else "  "
+            print(f"    {Colors.GREEN}{key_id}{Colors.END}: {masked} {status} {Colors.DIM}({name}){Colors.END}")
+        else:
+            print(f"    {Colors.RED}{key_id}{Colors.END}: [EMPTY] {Colors.DIM}({name}){Colors.END}")
+    
+    print(f"\n  {Colors.CYAN}👉 Enter key to activate (key1, key2, or key3):{Colors.END}")
+    choice = input(f"  🔑 Choice: ").strip().lower()
+    if choice in ['key1', 'key2', 'key3']:
+        if keys_data[choice]['key']:
+            if set_active_key(choice):
+                global RAPIDAPI_KEY
+                RAPIDAPI_KEY = keys_data[choice]['key']
+                update_api_headers()
+                print(f"  {Colors.GREEN}✅ Active key changed to {choice} ({keys_data[choice]['name']})!{Colors.END}")
+            else:
+                print(f"  {Colors.RED}❌ Failed to change active key!{Colors.END}")
+        else:
+            print(f"  {Colors.RED}❌ {choice} is empty! Please add a key first.{Colors.END}")
+    else:
+        print(f"  {Colors.RED}❌ Invalid choice!{Colors.END}")
+    
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def remove_key_function():
+    print(f"\n{Colors.CYAN}  🗑️ REMOVE/DELETE A KEY{Colors.END}")
+    print(f"  {'─'*50}")
+    
+    keys_data, active = get_all_keys_with_status()
+    print(f"\n  {Colors.YELLOW}📋 Available Keys:{Colors.END}")
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        if key_value:
+            masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+            status = "⭐ ACTIVE" if key_id == active else "  "
+            print(f"    {Colors.GREEN}{key_id}{Colors.END}: {masked} {status} {Colors.DIM}({name}){Colors.END}")
+        else:
+            print(f"    {Colors.RED}{key_id}{Colors.END}: [EMPTY] {Colors.DIM}({name}){Colors.END}")
+    
+    print(f"\n  {Colors.CYAN}👉 Enter key to remove (key1, key2, or key3):{Colors.END}")
+    choice = input(f"  🗑️ Choice: ").strip().lower()
+    if choice in ['key1', 'key2', 'key3']:
+        if keys_data[choice]['key']:
+            confirm = input(f"  {Colors.RED}⚠️ Are you sure you want to remove {choice}? (y/n): {Colors.END}").strip().lower()
+            if confirm == 'y':
+                if remove_key(choice):
+                    global RAPIDAPI_KEY
+                    RAPIDAPI_KEY = get_active_key()
+                    update_api_headers()
+                    print(f"  {Colors.GREEN}✅ {choice} removed successfully!{Colors.END}")
+                else:
+                    print(f"  {Colors.RED}❌ Failed to remove key!{Colors.END}")
+            else:
+                print(f"  {Colors.YELLOW}⚠️ Operation cancelled.{Colors.END}")
+        else:
+            print(f"  {Colors.YELLOW}⚠️ {choice} is already empty.{Colors.END}")
+    else:
+        print(f"  {Colors.RED}❌ Invalid choice!{Colors.END}")
+    
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def quick_switch_keys():
+    print(f"\n{Colors.CYAN}  🔄 QUICK SWITCH KEYS (Cycle){Colors.END}")
+    print(f"  {'─'*50}")
+    
+    keys_data, active = get_all_keys_with_status()
+    available = []
+    print(f"\n  {Colors.YELLOW}📋 Available Keys:{Colors.END}")
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        if key_value:
+            masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+            status = "⭐ ACTIVE" if key_id == active else "  "
+            print(f"    {Colors.GREEN}{key_id}{Colors.END}: {masked} {status} {Colors.DIM}({name}){Colors.END}")
+            available.append(key_id)
+        else:
+            print(f"    {Colors.RED}{key_id}{Colors.END}: [EMPTY] {Colors.DIM}({name}){Colors.END}")
+    
+    if not available:
+        print(f"  {Colors.RED}❌ No keys available! Please add keys first.{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    
+    print(f"\n  {Colors.CYAN}👉 Enter key to switch to (key1, key2, or key3):{Colors.END}")
+    print(f"  {Colors.DIM}  (or press Enter to cycle through available keys){Colors.END}")
+    choice = input(f"  🔑 Choice: ").strip().lower()
+    if not choice:
+        current_index = available.index(active) if active in available else 0
+        next_index = (current_index + 1) % len(available)
+        choice = available[next_index]
+        print(f"  🔄 Switching to {choice}...")
+    
+    if choice in available:
+        if set_active_key(choice):
+            global RAPIDAPI_KEY
+            RAPIDAPI_KEY = keys_data[choice]['key']
+            update_api_headers()
+            print(f"  {Colors.GREEN}✅ Switched to {choice} ({keys_data[choice]['name']})!{Colors.END}")
+        else:
+            print(f"  {Colors.RED}❌ Failed to switch!{Colors.END}")
+    else:
+        print(f"  {Colors.RED}❌ Invalid key or key is empty!{Colors.END}")
+    
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def test_api_key(key):
+    try:
+        test_url = "https://vahan-vehicle-details-api.p.rapidapi.com/rc_v2.php"
+        test_params = {"registration_no": "GJ05VC1234"}
+        headers = {
+            "x-rapidapi-host": "vahan-vehicle-details-api.p.rapidapi.com",
+            "x-rapidapi-key": key
+        }
+        response = requests.get(test_url, params=test_params, headers=headers, timeout=10)
+        if response.status_code in [200, 404, 429]:
+            return True, f"Status: {response.status_code}"
+        return False, f"Status: {response.status_code}"
+    except Exception as e:
+        return False, str(e)
+
+def test_all_keys():
+    print(f"\n{Colors.CYAN}  🧪 TEST ALL KEYS{Colors.END}")
+    print(f"  {'─'*50}")
+    
+    keys_data, active = get_all_keys_with_status()
+    print(f"\n  🔄 Testing all keys...\n")
+    results = []
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        if key_value:
+            masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+            print(f"  Testing {Colors.GREEN}{key_id}{Colors.END}: {masked} {Colors.DIM}({name}){Colors.END}")
+            is_valid, message = test_api_key(key_value)
+            if is_valid:
+                print(f"    {Colors.GREEN}✅ {message}{Colors.END}")
+                results.append((key_id, True, message))
+            else:
+                print(f"    {Colors.RED}❌ {message}{Colors.END}")
+                results.append((key_id, False, message))
+        else:
+            print(f"  Testing {Colors.RED}{key_id}{Colors.END}: [EMPTY] {Colors.DIM}({name}) - Skipped{Colors.END}")
+    
+    print(f"\n  {Colors.CYAN}📊 SUMMARY:{Colors.END}")
+    print(f"  {'─'*50}")
+    valid_count = sum(1 for r in results if r[1])
+    total_count = len(results)
+    print(f"  ✅ Valid: {valid_count}/{total_count}")
+    print(f"  ❌ Invalid: {total_count - valid_count}/{total_count}")
+    if results:
+        print(f"\n  {Colors.YELLOW}📋 Details:{Colors.END}")
+        for key_id, is_valid, message in results:
+            status = Colors.GREEN + "✅" + Colors.END if is_valid else Colors.RED + "❌" + Colors.END
+            print(f"    {key_id}: {status} {message}")
+    print(f"\n  {Colors.GREEN}✅ Testing complete!{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def test_current_key():
+    print(f"\n{Colors.CYAN}  🧪 TEST CURRENT/ACTIVE KEY{Colors.END}")
+    print(f"  {'─'*50}")
+    
+    active_id = get_active_key_id()
+    active_key = get_active_key()
+    keys_data, _ = get_all_keys_with_status()
+    name = keys_data.get(active_id, {}).get('name', active_id)
+    if not active_key:
+        print(f"  {Colors.RED}❌ No active key found!{Colors.END}")
+        input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+        return
+    masked = active_key[:8] + "..." + active_key[-4:] if len(active_key) > 12 else "****"
+    print(f"  🔑 Active Key: {Colors.GREEN}{active_id}{Colors.END} ({name})")
+    print(f"  🔑 Key: {masked}")
+    print(f"\n  🔄 Testing...")
+    is_valid, message = test_api_key(active_key)
+    if is_valid:
+        print(f"\n  {Colors.GREEN}✅ Key is VALID!{Colors.END}")
+        print(f"  📊 {message}")
+    else:
+        print(f"\n  {Colors.RED}❌ Key is INVALID!{Colors.END}")
+        print(f"  📊 {message}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def show_full_keys():
+    print(f"\n{Colors.CYAN}  📊 SHOW FULL KEYS{Colors.END}")
+    print(f"  {'─'*50}")
+    keys_data, active = get_all_keys_with_status()
+    print(f"\n  {Colors.YELLOW}📋 All Saved Keys (FULL):{Colors.END}")
+    print(f"  {'─'*50}")
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        status = "⭐ ACTIVE" if key_id == active else "  "
+        if key_value:
+            print(f"  {Colors.GREEN}{key_id}{Colors.END}:")
+            print(f"    Key: {Colors.CYAN}{key_value}{Colors.END}")
+            print(f"    Name: {Colors.WHITE}{name}{Colors.END}")
+            print(f"    Length: {len(key_value)} characters")
+            print(f"    Status: {status}")
+        else:
+            print(f"  {Colors.RED}{key_id}{Colors.END}: [EMPTY]")
+            print(f"    Name: {Colors.WHITE}{name}{Colors.END}")
+            print(f"    Status: {status}")
+        print(f"  {'─'*30}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def rename_key():
+    print(f"\n{Colors.CYAN}  ✏️ RENAME/SET KEY NAME{Colors.END}")
+    print(f"  {'─'*50}")
+    keys_data, active = get_all_keys_with_status()
+    print(f"\n  {Colors.YELLOW}📋 Available Keys:{Colors.END}")
+    for key_id, info in keys_data.items():
+        key_value = info['key']
+        name = info['name']
+        if key_value:
+            masked = key_value[:8] + "..." + key_value[-4:] if len(key_value) > 12 else "****"
+            status = "⭐ ACTIVE" if key_id == active else "  "
+            print(f"    {Colors.GREEN}{key_id}{Colors.END}: {masked} {status} {Colors.DIM}({name}){Colors.END}")
+        else:
+            print(f"    {Colors.RED}{key_id}{Colors.END}: [EMPTY] {Colors.DIM}({name}){Colors.END}")
+    print(f"\n  {Colors.CYAN}👉 Enter key to rename (key1, key2, or key3):{Colors.END}")
+    choice = input(f"  🔑 Choice: ").strip().lower()
+    if choice in ['key1', 'key2', 'key3']:
+        current_name = keys_data[choice]['name']
+        print(f"  Current name: {Colors.WHITE}{current_name}{Colors.END}")
+        print(f"\n  {Colors.YELLOW}📝 Enter new name:{Colors.END}")
+        new_name = input(f"  📛 New Name: ").strip()
+        if new_name:
+            if set_key_name(choice, new_name):
+                print(f"  {Colors.GREEN}✅ Name updated to '{new_name}' for {choice}!{Colors.END}")
+            else:
+                print(f"  {Colors.RED}❌ Failed to update name!{Colors.END}")
+        else:
+            print(f"  {Colors.YELLOW}⚠️ No name entered. Keeping current name.{Colors.END}")
+    else:
+        print(f"  {Colors.RED}❌ Invalid choice!{Colors.END}")
+    input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+
+def install_dependencies():
+    print(f"\n{Colors.CYAN}  📦 Installing/Updating dependencies...{Colors.END}")
+    packages = ['requests', 'beautifulsoup4', 'lxml', 'cryptography']
+    for pkg in packages:
+        print(f"  ⏳ Installing {pkg}...")
+        result = install_package(pkg)
+        if result:
+            print(f"  {Colors.GREEN}✅ {pkg} installed/updated.{Colors.END}")
+        else:
+            print(f"  {Colors.RED}❌ Failed to install {pkg}.{Colors.END}")
+    print(f"{Colors.GREEN}  ✅ Dependency check complete!{Colors.END}")
+
+# ===================================================================
+# 🚀 SCRIPT ENTRY POINT
+# ===================================================================
+
+def main():
+    # Initialize secure license manager
+    license_manager = SecureLicenseManager()
+    
+    # Verify license
+    if not license_manager.verify_license():
+        print(f"{Colors.RED}  ❌ License verification failed!{Colors.END}")
+        print(f"{Colors.YELLOW}  💡 Generate license with: python script.py --generate-license{Colors.END}")
+        sys.exit(1)
+    
+    clear_screen()
+    print_banner()
+    print(f"{Colors.GREEN}  ✅ All security checks passed!{Colors.END}")
+    print(f"{Colors.CYAN}  📡 {len(WORKING_APIS)} APIs loaded{Colors.END}")
+    print(f"{Colors.CYAN}  🆓 {sum(1 for api in WORKING_APIS if api.get('is_free', False))} Free APIs{Colors.END}")
+    print(f"{Colors.CYAN}  📌 RapidAPI Endpoints: {sum(1 for api in WORKING_APIS if api.get('rapidapi_id') and api.get('rapidapi_id') != 'FREE' and api.get('rapidapi_id') != 'N/A')}{Colors.END}")
+    print(f"{Colors.CYAN}  ⛔ AUTO MODE Skips: Priority 1,2,3,5,28{Colors.END}")
+    print(f"{Colors.MAGENTA}  ✅ AUTO MODE Includes: Priority 4,6-27,29-30 (Free APIs){Colors.END}")
+    print(f"{Colors.CYAN}  🔒 Encryption: AES-256 with PBKDF2{Colors.END}\n")
+    
+    while True:
+        show_menu()
+        choice = input(f"\n{Colors.CYAN}  👉 Enter your choice (0-9): {Colors.END}").strip()
+        
+        if choice == '1':
+            rc_lookup()
+            clear_screen()
+            print_banner()
+        elif choice == '2':
+            license_manager.generate_license()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '3':
+            show_security_status()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '4':
+            show_system_info()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '5':
+            clear_screen()
+            print_banner()
+        elif choice == '6':
+            install_dependencies()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '7':
+            show_priority_list()
+            input(f"\n{Colors.DIM}Press Enter to continue...{Colors.END}")
+            clear_screen()
+            print_banner()
+        elif choice == '8':
+            handle_api_key_menu()
+            clear_screen()
+            print_banner()
+        elif choice == '9':
+            quick_switch_keys()
+            clear_screen()
+            print_banner()
+        elif choice == '0':
+            print(f"\n{Colors.GREEN}  👋 Exiting ZYNTRASEC SECURITY...{Colors.END}")
+            print(f"  © 2026 ZYNTRASEC Security. All Rights Reserved.\n")
+            sys.exit(0)
+        else:
+            print(f"{Colors.RED}  ❌ Invalid choice! Please enter 0-9.{Colors.END}")
+            time.sleep(1)
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--generate-license":
+        print(f"{Colors.CYAN}Generating license file...{Colors.END}")
+        license_manager = SecureLicenseManager()
+        license_manager.generate_license()
+        sys.exit(0)
+    main()
