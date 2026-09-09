@@ -129,5 +129,5 @@ N032.curl --request GET \
 
 
 
-FREE API_BASE = "https://vehicleinfobyterabaap.vercel.app/lookup"
+FREE API_BASE = "https://vehicleinfobyterabaap.vercel.app/lookup?rc=DL10AB1234"
 

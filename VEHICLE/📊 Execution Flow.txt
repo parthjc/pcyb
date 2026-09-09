@@ -1,0 +1,46 @@
+📊 Execution Flow
+
+
+START
+  ↓
+Check Dependencies
+  ↓
+Display Menu
+  ↓
+Option 1: Subscribe
+  ↓
+Load Credentials
+  ↓
+Launch Browser
+  ↓
+Navigate to RapidAPI
+  ↓
+Check/Handle Login
+  ↓
+Search for "rto"
+  ↓
+Dynamic Scroll
+  ↓
+For each target API:
+  ↓
+  Check if API loaded
+  ↓
+  Scroll if needed
+  ↓
+  Click API
+  ↓
+  Handle Popups
+  ↓
+  Click "Subscribe to Run"
+  ↓
+  Select Free Plan
+  ↓
+  Confirm Subscription
+  ↓
+  Log Result
+  ↓
+  Return to Search
+  ↓
+Generate Report
+  ↓
+END

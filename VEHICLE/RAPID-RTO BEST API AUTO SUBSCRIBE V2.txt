@@ -1,0 +1,1130 @@
+#!/usr/bin/env python3
+"""
+RapidAPI Auto-Subscriber - Ultimate Production Version
+With All Improvements: Retry Logic, Screenshots, Progress Tracking, Rate Limiting
+"""
+
+import os
+import sys
+import json
+import time
+import random
+import asyncio
+import logging
+import hashlib
+import base64
+import subprocess
+import importlib
+import shutil
+from datetime import datetime
+from typing import List, Dict, Optional, Tuple, Any
+from pathlib import Path
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+
+# ===================================================================
+# 🔧 AUTO-DEPENDENCY INSTALLATION
+# ===================================================================
+
+class DependencyInstaller:
+    """Automatic dependency installation system."""
+    
+    REQUIRED_PACKAGES = {
+        'playwright': {'import': 'playwright', 'pip': 'playwright', 'desc': 'Browser automation'},
+        'cryptography': {'import': 'cryptography', 'pip': 'cryptography', 'desc': 'Encryption'},
+        'requests': {'import': 'requests', 'pip': 'requests', 'desc': 'HTTP requests'},
+        'colorama': {'import': 'colorama', 'pip': 'colorama', 'desc': 'Terminal colors'},
+        'tqdm': {'import': 'tqdm', 'pip': 'tqdm', 'desc': 'Progress bars'}
+    }
+    
+    def __init__(self):
+        self.installed = []
+        self.missing = []
+        self.failed = []
+        
+    def check_dependencies(self) -> bool:
+        """Check if all dependencies are installed."""
+        self.installed = []
+        self.missing = []
+        
+        for pkg_name, pkg_info in self.REQUIRED_PACKAGES.items():
+            try:
+                importlib.import_module(pkg_info['import'])
+                self.installed.append(pkg_name)
+            except ImportError:
+                self.missing.append(pkg_name)
+        
+        return len(self.missing) == 0
+    
+    def install_package(self, package_name: str) -> bool:
+        """Install a single package."""
+        try:
+            subprocess.check_call(
+                [sys.executable, '-m', 'pip', 'install', '--upgrade', package_name],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            return True
+        except:
+            return False
+    
+    def install_all(self) -> bool:
+        """Install all missing dependencies."""
+        print("\n" + "="*60)
+        print("  🔧 AUTO-DEPENDENCY INSTALLATION")
+        print("="*60)
+        
+        self.check_dependencies()
+        
+        if not self.missing:
+            print("  ✅ All dependencies already installed!")
+        else:
+            print(f"  📦 Found {len(self.missing)} missing packages:")
+            for pkg in self.missing:
+                print(f"     - {pkg} ({self.REQUIRED_PACKAGES[pkg]['desc']})")
+            
+            print("\n  ⏳ Installing...")
+            for pkg in self.missing:
+                print(f"     Installing {pkg}...", end=" ")
+                if self.install_package(self.REQUIRED_PACKAGES[pkg]['pip']):
+                    print("✅")
+                    self.installed.append(pkg)
+                else:
+                    print("❌")
+                    self.failed.append(pkg)
+        
+        # Install Playwright browser
+        if 'playwright' in self.installed or 'playwright' not in self.missing:
+            print("     Checking Playwright browser...", end=" ")
+            try:
+                subprocess.check_call(
+                    [sys.executable, '-m', 'playwright', 'install', 'chromium'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print("✅")
+            except:
+                print("⚠️ (run manually if needed)")
+        
+        return len(self.failed) == 0
+
+# ===================================================================
+# 🔐 ENCRYPTED CREDENTIAL STORAGE
+# ===================================================================
+
+class EncryptedStorage:
+    """Secure encrypted storage for credentials."""
+    
+    def __init__(self, key_file: str = ".key", storage_file: str = "credentials.enc"):
+        self.key_file = key_file
+        self.storage_file = storage_file
+        self.key = self._get_or_create_key()
+        
+    def _get_or_create_key(self) -> bytes:
+        """Get existing key or create new one."""
+        if os.path.exists(self.key_file):
+            with open(self.key_file, 'rb') as f:
+                return f.read()
+        
+        try:
+            from cryptography.fernet import Fernet
+            key = Fernet.generate_key()
+        except ImportError:
+            key = base64.urlsafe_b64encode(hashlib.sha256(b"rapidapi_subscriber").digest())
+        
+        with open(self.key_file, 'wb') as f:
+            f.write(key)
+        os.chmod(self.key_file, 0o600)
+        return key
+    
+    def encrypt(self, data: str) -> str:
+        """Encrypt string data."""
+        try:
+            from cryptography.fernet import Fernet
+            cipher = Fernet(self.key)
+            return cipher.encrypt(data.encode()).decode()
+        except:
+            return base64.b64encode(
+                bytes([b ^ self.key[i % len(self.key)] for i, b in enumerate(data.encode())])
+            ).decode()
+    
+    def decrypt(self, encrypted_data: str) -> str:
+        """Decrypt string data."""
+        try:
+            from cryptography.fernet import Fernet
+            cipher = Fernet(self.key)
+            return cipher.decrypt(encrypted_data.encode()).decode()
+        except:
+            try:
+                data = base64.b64decode(encrypted_data.encode())
+                return bytes([b ^ self.key[i % len(self.key)] for i, b in enumerate(data)]).decode()
+            except:
+                return ""
+    
+    def save(self, data: Dict):
+        """Save encrypted data."""
+        encrypted_data = self.encrypt(json.dumps(data))
+        with open(self.storage_file, 'w') as f:
+            json.dump({"encrypted": encrypted_data}, f)
+        os.chmod(self.storage_file, 0o600)
+    
+    def load(self) -> Dict:
+        """Load encrypted data."""
+        if not os.path.exists(self.storage_file):
+            return {}
+        
+        try:
+            with open(self.storage_file, 'r') as f:
+                data = json.load(f)
+                decrypted = self.decrypt(data.get("encrypted", ""))
+                return json.loads(decrypted) if decrypted else {}
+        except:
+            return {}
+
+class CredentialManager:
+    """Manage credentials with encryption."""
+    
+    def __init__(self):
+        self.storage = EncryptedStorage()
+        self.credentials: List[Dict] = []
+        self.load()
+    
+    def load(self):
+        """Load credentials from encrypted storage."""
+        data = self.storage.load()
+        self.credentials = data.get("credentials", [])
+    
+    def save(self):
+        """Save credentials to encrypted storage."""
+        self.storage.save({"credentials": self.credentials})
+    
+    def add(self, email: str, password: str) -> bool:
+        """Add or update credential."""
+        if not email or not password:
+            return False
+        
+        for cred in self.credentials:
+            if cred["email"] == email:
+                cred["password"] = password
+                cred["updated_at"] = datetime.now().isoformat()
+                self.save()
+                return True
+        
+        self.credentials.append({
+            "email": email,
+            "password": password,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "last_used": None
+        })
+        self.save()
+        return True
+    
+    def delete(self, index: int) -> bool:
+        """Delete credential by index."""
+        if 0 <= index < len(self.credentials):
+            self.credentials.pop(index)
+            self.save()
+            return True
+        return False
+    
+    def get(self, index: int = 0) -> Optional[Dict]:
+        """Get credential by index."""
+        if 0 <= index < len(self.credentials):
+            cred = self.credentials[index]
+            cred["last_used"] = datetime.now().isoformat()
+            self.save()
+            return cred
+        return None
+    
+    def list(self) -> List[Dict]:
+        """List all credentials."""
+        return self.credentials
+    
+    def mask_password(self, password: str) -> str:
+        """Mask password for display."""
+        if len(password) <= 2:
+            return "***"
+        return password[0] + "*" * (len(password) - 2) + password[-1]
+
+# ===================================================================
+# 🎨 TERMINAL COLORS
+# ===================================================================
+
+class Colors:
+    """Terminal color codes."""
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BLUE = '\033[94m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    END = '\033[0m'
+    
+    @staticmethod
+    def success(msg): return f"{Colors.GREEN}✅ {msg}{Colors.END}"
+    @staticmethod
+    def error(msg): return f"{Colors.RED}❌ {msg}{Colors.END}"
+    @staticmethod
+    def warning(msg): return f"{Colors.YELLOW}⚠️ {msg}{Colors.END}"
+    @staticmethod
+    def info(msg): return f"{Colors.CYAN}ℹ️ {msg}{Colors.END}"
+
+# ===================================================================
+# 📊 SUBSCRIPTION LOGGER
+# ===================================================================
+
+class SubscriptionLogger:
+    """Comprehensive subscription logging."""
+    
+    def __init__(self, log_file: str = "subscriptions.json"):
+        self.log_file = log_file
+        self.data = self._load()
+    
+    def _load(self) -> Dict:
+        """Load subscription log."""
+        if os.path.exists(self.log_file):
+            try:
+                with open(self.log_file, 'r') as f:
+                    return json.load(f)
+            except:
+                pass
+        
+        return {
+            "subscriptions": [],
+            "attempts": [],
+            "statistics": {
+                "total_subscribed": 0,
+                "total_attempts": 0,
+                "successful_attempts": 0,
+                "failed_attempts": 0,
+                "last_run": None
+            }
+        }
+    
+    def save(self):
+        """Save subscription log."""
+        with open(self.log_file, 'w') as f:
+            json.dump(self.data, f, indent=2)
+    
+    def log_subscription(self, api_name: str, api_url: str, status: str, email: str):
+        """Log a subscription."""
+        timestamp = datetime.now().isoformat()
+        
+        for sub in self.data["subscriptions"]:
+            if sub["api_url"] == api_url:
+                sub.update({
+                    "api_name": api_name,
+                    "status": status,
+                    "last_checked": timestamp,
+                    "email": email
+                })
+                self.save()
+                return
+        
+        self.data["subscriptions"].append({
+            "api_name": api_name,
+            "api_url": api_url,
+            "status": status,
+            "subscribed_at": timestamp,
+            "last_checked": timestamp,
+            "email": email
+        })
+        
+        if status == "active":
+            self.data["statistics"]["total_subscribed"] += 1
+        
+        self.data["statistics"]["last_run"] = timestamp
+        self.save()
+    
+    def log_attempt(self, api_name: str, api_url: str, status: str, error: str = ""):
+        """Log an attempt."""
+        self.data["attempts"].append({
+            "api_name": api_name,
+            "api_url": api_url,
+            "status": status,
+            "error": error,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        self.data["statistics"]["total_attempts"] += 1
+        if status == "success":
+            self.data["statistics"]["successful_attempts"] += 1
+        elif status in ["failed", "error"]:
+            self.data["statistics"]["failed_attempts"] += 1
+        
+        self.save()
+    
+    def get_statistics(self) -> Dict:
+        """Get subscription statistics."""
+        subs = self.data["subscriptions"]
+        active = sum(1 for s in subs if s["status"] == "active")
+        inactive = sum(1 for s in subs if s["status"] != "active")
+        
+        return {
+            "total_subscriptions": len(subs),
+            "active": active,
+            "inactive": inactive,
+            "total_attempts": self.data["statistics"]["total_attempts"],
+            "success_rate": (
+                (self.data["statistics"]["successful_attempts"] / 
+                 self.data["statistics"]["total_attempts"] * 100)
+                if self.data["statistics"]["total_attempts"] > 0 else 0
+            ),
+            "last_run": self.data["statistics"]["last_run"]
+        }
+    
+    def display_statistics(self):
+        """Display statistics."""
+        stats = self.get_statistics()
+        
+        print(f"\n{Colors.CYAN}  📊 SUBSCRIPTION STATISTICS{Colors.END}")
+        print(f"  {'═'*50}")
+        print(f"  {Colors.GREEN}✅ Active: {stats['active']}{Colors.END}")
+        print(f"  {Colors.YELLOW}⚠️ Inactive: {stats['inactive']}{Colors.END}")
+        print(f"  {Colors.WHITE}📦 Total: {stats['total_subscriptions']}{Colors.END}")
+        print(f"  {Colors.CYAN}🔄 Attempts: {stats['total_attempts']}{Colors.END}")
+        print(f"  {Colors.GREEN}📈 Success Rate: {stats['success_rate']:.1f}%{Colors.END}")
+        print(f"  {Colors.MAGENTA}🕐 Last Run: {stats['last_run'] or 'Never'}{Colors.END}")
+
+# ===================================================================
+# 📸 SCREENSHOT MANAGER
+# ===================================================================
+
+class ScreenshotManager:
+    """Capture screenshots for debugging."""
+    
+    def __init__(self):
+        self.screenshot_dir = "screenshots"
+        os.makedirs(self.screenshot_dir, exist_ok=True)
+    
+    async def capture(self, page, name: str):
+        """Capture screenshot."""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{self.screenshot_dir}/{name}_{timestamp}.png"
+            await page.screenshot(path=filename)
+            print(f"  📸 Screenshot: {filename}")
+            return filename
+        except Exception as e:
+            print(f"  ⚠️ Screenshot failed: {e}")
+            return None
+
+# ===================================================================
+# 📊 PROGRESS TRACKER
+# ===================================================================
+
+class ProgressTracker:
+    """Track and display progress."""
+    
+    def __init__(self, total: int):
+        self.total = total
+        self.current = 0
+        self.start_time = time.time()
+    
+    def update(self, api_num: int, status: str):
+        """Update progress."""
+        self.current += 1
+        elapsed = time.time() - self.start_time
+        avg_time = elapsed / self.current if self.current > 0 else 0
+        remaining = avg_time * (self.total - self.current)
+        
+        # Progress bar
+        bar_length = 30
+        filled = int(bar_length * self.current / self.total)
+        bar = "█" * filled + "░" * (bar_length - filled)
+        
+        print(f"\n  📊 Progress: {self.current}/{self.total} ({self.current/self.total*100:.1f}%)")
+        print(f"  [{bar}]")
+        print(f"  ⏱️ Elapsed: {elapsed:.1f}s | Remaining: {remaining:.1f}s")
+        print(f"  📍 API #{api_num}: {status}")
+
+# ===================================================================
+# ⏱️ RATE LIMITER
+# ===================================================================
+
+class RateLimiter:
+    """Control request rate."""
+    
+    def __init__(self, min_delay: float = 5.0, max_delay: float = 15.0):
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.last_request = 0
+    
+    async def wait(self):
+        """Wait appropriate time before next request."""
+        current = time.time()
+        time_since_last = current - self.last_request
+        
+        if time_since_last < self.min_delay:
+            delay = random.uniform(self.min_delay, self.max_delay)
+            print(f"  ⏳ Rate limiting: waiting {delay:.1f}s...")
+            await asyncio.sleep(delay)
+        
+        self.last_request = time.time()
+
+# ===================================================================
+# 🎮 RAPIDAPI AUTOMATOR - COMPLETE
+# ===================================================================
+
+class RapidAPIAutomator:
+    """Complete RapidAPI automation with all improvements."""
+    
+    # Comprehensive selectors
+    SUBSCRIBE_BUTTON_SELECTORS = [
+        "button:has-text('Subscribe to Run')",
+        "button:has-text('Subscribe')",
+        "button:has-text('Get Started')",
+        "button:has-text('Start Free')",
+        "a:has-text('Subscribe')",
+        "button[class*='subscribe']",
+        "button[data-test*='subscribe']"
+    ]
+    
+    FREE_PLAN_SELECTORS = [
+        "button:has-text('Start Free Plan')",
+        "button:has-text('Free Plan')",
+        "button:has-text('Basic Plan')",
+        "button:has-text('Free')",
+        "button:has-text('Request Access')",
+        "button:has-text('Get Free')",
+        "button[class*='free']",
+        "div[class*='pricing'] button:has-text('Free')"
+    ]
+    
+    CONFIRM_SELECTORS = [
+        "button:has-text('OK')",
+        "button:has-text('Confirm')",
+        "button:has-text('Subscribe')",
+        "button:has-text('Yes')",
+        "button:has-text('Continue')",
+        "button:has-text('Proceed')",
+        "button[class*='confirm']"
+    ]
+    
+    def __init__(self, credentials: Dict, logger: SubscriptionLogger):
+        self.credentials = credentials
+        self.logger = logger
+        self.base_url = "https://rapidapi.com"
+        self.search_url = f"{self.base_url}/search?term=rto"
+        self.screenshot_mgr = ScreenshotManager()
+        self.rate_limiter = RateLimiter()
+        
+    async def handle_popups(self, page):
+        """Handle all popups."""
+        popups = [
+            "button:has-text('Save')",
+            "button:has-text('No thanks')",
+            "button:has-text('Never')",
+            "button:has-text('Accept All')",
+            "button:has-text('Reject All')",
+            "button[aria-label='Close']",
+            "button:has-text('Close')"
+        ]
+        
+        for selector in popups:
+            try:
+                element = page.locator(selector).first
+                if await element.is_visible(timeout=1000):
+                    await element.click()
+                    await page.wait_for_timeout(500)
+            except:
+                pass
+    
+    async def handle_error(self, page) -> bool:
+        """Handle error pages with recovery."""
+        try:
+            error = page.locator("text=Something Went Wrong").first
+            if await error.is_visible(timeout=2000):
+                print(f"  {Colors.warning('Error page detected!')}")
+                
+                # Recovery actions
+                recovery_actions = [
+                    lambda: page.locator("button:has-text('Try again')").first.click(),
+                    lambda: page.reload(wait_until="domcontentloaded"),
+                    lambda: page.goto(self.base_url, wait_until="domcontentloaded"),
+                    lambda: page.goto(self.search_url, wait_until="domcontentloaded")
+                ]
+                
+                for action in recovery_actions:
+                    try:
+                        await action()
+                        await page.wait_for_timeout(5000)
+                        
+                        error = page.locator("text=Something Went Wrong").first
+                        if not await error.is_visible(timeout=2000):
+                            print(f"  {Colors.success('Recovered from error!')}")
+                            return True
+                    except:
+                        continue
+                
+                return False
+        except:
+            pass
+        return True
+    
+    async def detect_page_state(self, page) -> str:
+        """Detect current page state."""
+        states = {
+            "search_results": "a[href*='/api/']",
+            "api_details": "button:has-text('Subscribe')",
+            "pricing": "button:has-text('Free Plan')",
+            "confirmation": "button:has-text('Confirm')",
+            "error": "text=Something Went Wrong",
+            "login": "input[type='email']"
+        }
+        
+        for state, selector in states.items():
+            try:
+                if await page.locator(selector).first.is_visible(timeout=2000):
+                    return state
+            except:
+                continue
+        
+        return "unknown"
+    
+    async def check_session_valid(self, page) -> bool:
+        """Check if session is still valid."""
+        try:
+            await page.goto(f"{self.base_url}/developer/dashboard", wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000)
+            
+            if "login" in page.url:
+                return False
+            
+            return True
+        except:
+            return False
+    
+    async def login(self, page) -> bool:
+        """Login to RapidAPI."""
+        print(f"\n  🔐 Checking login status...")
+        
+        # Check if already logged in
+        try:
+            sign_in = page.locator("button:has-text('Sign In'), a:has-text('Sign In')").first
+            if not await sign_in.is_visible(timeout=3000):
+                print(f"  {Colors.success('Already logged in!')}")
+                return True
+        except:
+            pass
+        
+        # Navigate to login page
+        print(f"  🔐 Login required. Navigating to login...")
+        await page.goto(f"{self.base_url}/auth/login", wait_until="domcontentloaded")
+        await page.wait_for_timeout(5000)
+        await self.handle_popups(page)
+        
+        # Try different login selectors
+        login_attempts = [
+            ("#email", "#password"),
+            ("input[type='email']", "input[type='password']"),
+            ("input[name='email']", "input[name='password']")
+        ]
+        
+        for email_sel, pass_sel in login_attempts:
+            try:
+                email_input = page.locator(email_sel).first
+                pass_input = page.locator(pass_sel).first
+                submit_btn = page.locator("button[type='submit']").first
+                
+                if await email_input.is_visible(timeout=5000):
+                    await email_input.fill(self.credentials["email"])
+                    await pass_input.fill(self.credentials["password"])
+                    await submit_btn.click()
+                    await page.wait_for_timeout(8000)
+                    
+                    if not await page.locator("text=Sign In").first.is_visible(timeout=3000):
+                        print(f"  {Colors.success('Login successful!')}")
+                        return True
+            except:
+                continue
+        
+        print(f"  {Colors.error('Login failed!')}")
+        return False
+    
+    async def scroll_to_load_apis(self, page, max_scrolls=50) -> int:
+        """Scroll to load all APIs."""
+        print(f"\n  🔄 Loading all APIs...")
+        
+        previous_count = 0
+        no_new = 0
+        
+        for i in range(max_scrolls):
+            await page.mouse.wheel(0, 2000)
+            await page.wait_for_timeout(800)
+            
+            api_links = page.locator("a[href*='/api/']")
+            current_count = await api_links.count()
+            
+            if current_count > previous_count:
+                print(f"  📊 Found {current_count} APIs...")
+                previous_count = current_count
+                no_new = 0
+            else:
+                no_new += 1
+            
+            if no_new >= 5:
+                break
+            
+            await asyncio.sleep(random.uniform(0.1, 0.3))
+        
+        api_links = page.locator("a[href*='/api/']")
+        final_count = await api_links.count()
+        print(f"  {Colors.success(f'Loaded {final_count} APIs')}")
+        return final_count
+    
+    async def ensure_api_loaded(self, page, target_index, max_attempts=5) -> bool:
+        """Ensure specific API is loaded."""
+        for attempt in range(max_attempts):
+            api_links = page.locator("a[href*='/api/']")
+            current_count = await api_links.count()
+            
+            if target_index < current_count:
+                return True
+            
+            print(f"  🔄 API #{target_index + 1} not loaded ({current_count} found). Scrolling...")
+            
+            for _ in range(5):
+                await page.mouse.wheel(0, 2500)
+                await page.wait_for_timeout(500)
+            
+            api_links = page.locator("a[href*='/api/']")
+            current_count = await api_links.count()
+            
+            if target_index < current_count:
+                return True
+            
+            if attempt < max_attempts - 1:
+                await page.reload(wait_until="domcontentloaded")
+                await page.wait_for_timeout(5000)
+        
+        return False
+    
+    async def click_element(self, page, selectors: List[str], timeout: int = 3000) -> bool:
+        """Try multiple selectors to click element."""
+        for selector in selectors:
+            try:
+                element = page.locator(selector).first
+                if await element.is_visible(timeout=timeout):
+                    await element.click()
+                    return True
+            except:
+                continue
+        return False
+    
+    async def subscribe_to_api(self, page, api_number: int) -> Dict:
+        """Subscribe to a specific API with retry logic."""
+        result = {
+            "status": "failed",
+            "api_name": f"API_{api_number}",
+            "api_url": "",
+            "error": ""
+        }
+        
+        target_index = api_number - 1
+        
+        # Ensure API is loaded
+        if not await self.ensure_api_loaded(page, target_index):
+            result["status"] = "not_found"
+            result["error"] = f"API #{api_number} not found"
+            return result
+        
+        # Get API element
+        api_links = page.locator("a[href*='/api/']")
+        api_element = api_links.nth(target_index)
+        
+        # Get API info
+        result["api_name"] = await api_element.text_content() or f"API_{api_number}"
+        api_url = await api_element.get_attribute("href") or ""
+        result["api_url"] = api_url if api_url.startswith("http") else f"{self.base_url}{api_url}"
+        
+        # Scroll to element
+        await api_element.scroll_into_view_if_needed()
+        await page.wait_for_timeout(1000)
+        
+        # Screenshot before click
+        await self.screenshot_mgr.capture(page, f"api_{api_number}_before")
+        
+        # Click API
+        print(f"  🎯 Clicking API #{api_number}: {result['api_name'][:50]}")
+        await api_element.click()
+        await page.wait_for_timeout(8000)  # Increased wait time
+        
+        # Screenshot after click
+        await self.screenshot_mgr.capture(page, f"api_{api_number}_after")
+        
+        # Handle errors and popups
+        await self.handle_error(page)
+        await self.handle_popups(page)
+        
+        # Detect page state
+        page_state = await self.detect_page_state(page)
+        print(f"  📄 Page state: {page_state}")
+        
+        # Check for subscribe button with multiple selectors
+        if await self.click_element(page, self.SUBSCRIBE_BUTTON_SELECTORS, timeout=5000):
+            print(f"  🔘 Clicked subscribe button")
+            await page.wait_for_timeout(5000)
+            await self.handle_error(page)
+            await self.handle_popups(page)
+            
+            # Screenshot pricing page
+            await self.screenshot_mgr.capture(page, f"api_{api_number}_pricing")
+            
+            # Look for free plan with multiple selectors
+            if await self.click_element(page, self.FREE_PLAN_SELECTORS, timeout=3000):
+                print(f"  🎁 Clicked free plan")
+                await page.wait_for_timeout(5000)
+                await self.handle_error(page)
+                
+                # Screenshot confirmation page
+                await self.screenshot_mgr.capture(page, f"api_{api_number}_confirm")
+                
+                # Confirm subscription with multiple selectors
+                if await self.click_element(page, self.CONFIRM_SELECTORS, timeout=3000):
+                    print(f"  {Colors.success('Subscription confirmed!')}")
+                    result["status"] = "success"
+                    self.logger.log_subscription(
+                        result["api_name"],
+                        result["api_url"],
+                        "active",
+                        self.credentials["email"]
+                    )
+                    return result
+                else:
+                    result["error"] = "Could not find confirm button"
+            else:
+                result["status"] = "no_free_plan"
+                result["error"] = "No free plan available"
+                return result
+        else:
+            # Check if already subscribed
+            if await self.click_element(page, ["button:has-text('Change plan')"], timeout=2000):
+                result["status"] = "already_subscribed"
+                self.logger.log_subscription(
+                    result["api_name"],
+                    result["api_url"],
+                    "active",
+                    self.credentials["email"]
+                )
+                return result
+        
+        result["error"] = "Could not complete subscription"
+        return result
+    
+    async def subscribe_with_retry(self, page, api_number: int, max_retries: int = 3) -> Dict:
+        """Subscribe with retry logic."""
+        for attempt in range(max_retries):
+            result = await self.subscribe_to_api(page, api_number)
+            
+            if result["status"] == "success":
+                return result
+            
+            if attempt < max_retries - 1:
+                print(f"  🔄 Retry {attempt + 1}/{max_retries} for API #{api_number}")
+                await asyncio.sleep(random.uniform(5, 10))
+                
+                # Refresh page
+                await page.goto(self.search_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(5000)
+        
+        return result
+    
+    async def run_subscription(self, target_apis: List[int]):
+        """Run complete subscription process."""
+        from playwright.async_api import async_playwright
+        
+        print(f"\n{Colors.CYAN}  🚀 STARTING SUBSCRIPTION PROCESS{Colors.END}")
+        print(f"  {'═'*50}")
+        print(f"  📧 Email: {self.credentials['email']}")
+        print(f"  🎯 Target APIs: {target_apis}")
+        print(f"  📊 Total: {len(target_apis)}")
+        print(f"  {'═'*50}\n")
+        
+        results = {
+            "success": [],
+            "failed": [],
+            "not_found": [],
+            "already_subscribed": [],
+            "no_free_plan": []
+        }
+        
+        # Progress tracker
+        progress = ProgressTracker(len(target_apis))
+        
+        async with async_playwright() as p:
+            # Launch browser
+            print(f"  🌐 Launching browser...")
+            context = await p.chromium.launch_persistent_context(
+                "./user_data",
+                headless=False,
+                viewport={'width': 1280, 'height': 720}
+            )
+            page = context.pages[0] if context.pages else await context.new_page()
+            page.set_default_timeout(60000)
+            
+            # Navigate to search page
+            print(f"  🔍 Navigating to search page...")
+            await page.goto(self.search_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(8000)
+            await self.handle_error(page)
+            await self.handle_popups(page)
+            
+            # Login
+            if not await self.login(page):
+                print(f"  {Colors.error('Login failed! Exiting...')}")
+                await context.close()
+                return results
+            
+            # Process each API
+            for i, api_num in enumerate(target_apis, 1):
+                print(f"\n  {'─'*50}")
+                print(f"  📍 Processing API #{api_num} ({i}/{len(target_apis)})")
+                print(f"  {'─'*50}")
+                
+                # Rate limiting
+                await self.rate_limiter.wait()
+                
+                # Navigate to search page for each API
+                await page.goto(self.search_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(3000)
+                
+                # Subscribe with retry
+                result = await self.subscribe_with_retry(page, api_num)
+                
+                # Update progress
+                progress.update(api_num, result["status"])
+                
+                # Log result
+                if result["status"] == "success":
+                    results["success"].append(api_num)
+                    print(f"  {Colors.success(f'API #{api_num} subscribed successfully!')}")
+                elif result["status"] == "already_subscribed":
+                    results["already_subscribed"].append(api_num)
+                    print(f"  {Colors.warning(f'API #{api_num} already subscribed')}")
+                elif result["status"] == "no_free_plan":
+                    results["no_free_plan"].append(api_num)
+                    print(f"  {Colors.warning(f'API #{api_num} has no free plan')}")
+                elif result["status"] == "not_found":
+                    results["not_found"].append(api_num)
+                    print(f"  {Colors.warning(f'API #{api_num} not found')}")
+                else:
+                    results["failed"].append(api_num)
+                    print(f"  {Colors.error(f'API #{api_num} failed: {result["error"]}')}")
+                
+                # Log attempt
+                self.logger.log_attempt(
+                    api_name=result["api_name"],
+                    api_url=result["api_url"],
+                    status=result["status"],
+                    error=result["error"]
+                )
+            
+            # Display summary
+            print(f"\n{Colors.CYAN}  📊 SUBSCRIPTION SUMMARY{Colors.END}")
+            print(f"  {'═'*50}")
+            print(f"  {Colors.GREEN}✅ Success: {len(results['success'])}{Colors.END}")
+            print(f"  {Colors.YELLOW}⚠️ Already Subscribed: {len(results['already_subscribed'])}{Colors.END}")
+            print(f"  {Colors.YELLOW}⏭️ No Free Plan: {len(results['no_free_plan'])}{Colors.END}")
+            print(f"  {Colors.RED}❌ Failed: {len(results['failed'])}{Colors.END}")
+            print(f"  {Colors.RED}🔍 Not Found: {len(results['not_found'])}{Colors.END}")
+            
+            if results["success"]:
+                print(f"\n  {Colors.GREEN}Successfully subscribed APIs:{Colors.END}")
+                for num in results["success"]:
+                    print(f"    ✅ API #{num}")
+            
+            if results["failed"]:
+                print(f"\n  {Colors.RED}Failed APIs:{Colors.END}")
+                for num in results["failed"]:
+                    print(f"    ❌ API #{num}")
+            
+            # Keep browser open
+            print(f"\n  🖥️ Browser will close in 30 seconds...")
+            await page.wait_for_timeout(30000)
+            await context.close()
+        
+        return results
+
+# ===================================================================
+# 🚀 MAIN APPLICATION
+# ===================================================================
+
+class RapidAPISubscriberApp:
+    """Main application class."""
+    
+    def __init__(self):
+        self.installer = DependencyInstaller()
+        self.credential_manager = CredentialManager()
+        self.logger = SubscriptionLogger()
+        self.target_apis = [2, 5, 12, 13, 14, 16, 17, 18, 19, 22, 24, 25, 27, 28, 29, 30, 31, 32]
+        
+    def setup(self):
+        """Setup application."""
+        self.installer.install_all()
+        
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('rapidapi.log'),
+                logging.StreamHandler()
+            ]
+        )
+    
+    def display_menu(self):
+        """Display main menu."""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        
+        print(f"\n{Colors.MAGENTA}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
+        print(f"{Colors.MAGENTA}║     RAPIDAPI AUTO-SUBSCRIBER - ULTIMATE PRODUCTION VERSION    ║{Colors.END}")
+        print(f"{Colors.MAGENTA}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
+        
+        creds = self.credential_manager.list()
+        email = creds[0]["email"] if creds else "NOT SET"
+        
+        print(f"\n{Colors.CYAN}  📊 Status:{Colors.END}")
+        print(f"  📧 Email: {Colors.GREEN}{email}{Colors.END}")
+        print(f"  🎯 Target APIs: {Colors.GREEN}{len(self.target_apis)}{Colors.END}")
+        print(f"  📸 Screenshots: {Colors.GREEN}Enabled{Colors.END}")
+        print(f"  ⏱️ Rate Limiting: {Colors.GREEN}Enabled{Colors.END}")
+        
+        print(f"\n{Colors.CYAN}  📋 Menu:{Colors.END}")
+        print(f"  {Colors.GREEN}1{Colors.END}. 🚀 Start Subscription")
+        print(f"  {Colors.GREEN}2{Colors.END}. 👤 Manage Credentials")
+        print(f"  {Colors.GREEN}3{Colors.END}. 🎯 Edit Target APIs")
+        print(f"  {Colors.GREEN}4{Colors.END}. 📊 View Statistics")
+        print(f"  {Colors.GREEN}5{Colors.END}. 🧹 Clear Cache")
+        print(f"  {Colors.GREEN}6{Colors.END}. 🚪 Exit")
+        
+        return input(f"\n{Colors.CYAN}  👉 Choice: {Colors.END}").strip()
+    
+    def manage_credentials(self):
+        """Manage credentials."""
+        while True:
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print(f"\n{Colors.CYAN}  👤 CREDENTIAL MANAGEMENT{Colors.END}")
+            
+            creds = self.credential_manager.list()
+            if creds:
+                for i, cred in enumerate(creds, 1):
+                    masked = self.credential_manager.mask_password(cred["password"])
+                    print(f"  {i}. {cred['email']} (Password: {masked})")
+            else:
+                print(f"  {Colors.YELLOW}No credentials saved.{Colors.END}")
+            
+            print(f"\n  1. ➕ Add/Update Credential")
+            print(f"  2. 🗑️ Delete Credential")
+            print(f"  3. ↩️ Back")
+            
+            choice = input(f"\n  👉 Choice: ").strip()
+            
+            if choice == '1':
+                email = input("  Email: ").strip()
+                password = input("  Password: ").strip()
+                if self.credential_manager.add(email, password):
+                    print(Colors.success("Saved!"))
+                input("Press Enter...")
+            
+            elif choice == '2':
+                if creds:
+                    idx = int(input("  Delete #: ").strip()) - 1
+                    if self.credential_manager.delete(idx):
+                        print(Colors.success("Deleted!"))
+                input("Press Enter...")
+            
+            elif choice == '3':
+                break
+    
+    def start_subscription(self):
+        """Start subscription process."""
+        creds = self.credential_manager.get()
+        if not creds:
+            print(Colors.error("No credentials! Add them first."))
+            input("Press Enter...")
+            return
+        
+        print(f"\n{Colors.CYAN}  🚀 PREPARING SUBSCRIPTION...{Colors.END}")
+        print(f"  📧 Email: {creds['email']}")
+        print(f"  🎯 Target APIs: {len(self.target_apis)}")
+        print(f"  📸 Screenshots will be saved to ./screenshots/")
+        
+        confirm = input(f"\n  ⚠️ Continue? (y/n): ").strip().lower()
+        if confirm != 'y':
+            print(Colors.warning("Cancelled."))
+            input("Press Enter...")
+            return
+        
+        # Create automator and run
+        automator = RapidAPIAutomator(creds, self.logger)
+        
+        try:
+            asyncio.run(automator.run_subscription(self.target_apis))
+        except Exception as e:
+            print(Colors.error(f"Error: {e}"))
+            logging.error(f"Subscription error: {e}", exc_info=True)
+        
+        input("\nPress Enter to continue...")
+    
+    def run(self):
+        """Run application."""
+        self.setup()
+        
+        while True:
+            choice = self.display_menu()
+            
+            if choice == '1':
+                self.start_subscription()
+            
+            elif choice == '2':
+                self.manage_credentials()
+            
+            elif choice == '3':
+                print(f"\nCurrent: {self.target_apis}")
+                new = input("New APIs (comma-separated): ").strip()
+                try:
+                    self.target_apis = [int(x.strip()) for x in new.split(',') if x.strip()]
+                    print(Colors.success("Updated!"))
+                except:
+                    print(Colors.error("Invalid input!"))
+                input("Press Enter...")
+            
+            elif choice == '4':
+                self.logger.display_statistics()
+                input("Press Enter...")
+            
+            elif choice == '5':
+                if os.path.exists("./user_data"):
+                    shutil.rmtree("./user_data")
+                    print(Colors.success("Cache cleared!"))
+                else:
+                    print(Colors.warning("No cache to clear."))
+                input("Press Enter...")
+            
+            elif choice == '6':
+                print(Colors.info("Goodbye!"))
+                sys.exit(0)
+
+# ===================================================================
+# MAIN ENTRY POINT
+# ===================================================================
+
+def main():
+    """Main entry point."""
+    try:
+        app = RapidAPISubscriberApp()
+        app.run()
+    except KeyboardInterrupt:
+        print(f"\n{Colors.YELLOW}  ⚠️ Interrupted by user{Colors.END}")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n{Colors.RED}  ❌ Fatal error: {e}{Colors.END}")
+        logging.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

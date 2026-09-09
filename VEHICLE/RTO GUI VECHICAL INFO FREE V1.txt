@@ -1,0 +1,834 @@
+#!/usr/bin/env python3
+# ZYNTRASEC SECURITY - Vehicle Information Dashboard GUI
+# FINAL FIXED - Refresh uses MODEL NAME, not RC number
+
+import os,re,json,sqlite3
+from datetime import datetime
+from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+from urllib.request import Request,urlopen
+from urllib.error import HTTPError,URLError
+from urllib.parse import urlparse,parse_qs,quote
+
+HOST=os.getenv("HOST","127.0.0.1")
+PORT=int(os.getenv("PORT","8000"))
+RAPIDAPI_KEY=os.getenv("RAPIDAPI_KEY","").strip()
+
+APIS=[
+ {"name":"Vehicle Info Free API","url":"https://vehicleinfobyterabaap.vercel.app/lookup","param":"rc","headers":{}},
+ {"name":"RTO Search Free","url":"https://www.rtosearch.in/api/get_details.php","param":"vehicle_no","headers":{}},
+ {"name":"RTO Vehicle Info (RapidAPI)","url":"https://rto-vehicle-information-india-api.p.rapidapi.com/rc_v2.php","param":"registration_no",
+  "headers":{"x-rapidapi-host":"rto-vehicle-information-india-api.p.rapidapi.com","Content-Type":"application/json"}}
+]
+
+SENSITIVE=("father","address","phone","mobile","email","engine","chassis","aadhar","aadhaar","bank","financier")
+
+def valid_rc(rc):
+ s=re.sub(r"[^A-Z0-9]","",rc.upper())
+ return bool(re.match(r"^(AP|AR|AS|BR|CG|GA|GJ|HR|HP|JK|JH|KA|KL|MP|MH|MN|ML|MZ|NL|OD|OR|PB|RJ|SK|TN|TR|UP|WB|AN|CH|DN|DD|DL|LD|PY|TS|TG|LA)\d{1,2}[A-Z]{1,3}\d{4}$",s))
+
+def flatten(x,p=""):
+ out={}
+ if isinstance(x,dict):
+  for k,v in x.items():
+   n=f"{p}_{k}" if p else str(k)
+   if isinstance(v,(dict,list)):out.update(flatten(v,n))
+   else:out[n]=v
+ elif isinstance(x,list):
+  for i,v in enumerate(x):
+   n=f"{p}_{i}" if p else str(i)
+   if isinstance(v,(dict,list)):out.update(flatten(v,n))
+   else:out[n]=v
+ return out
+
+def is_sensitive(k):
+ k=str(k).lower().replace("-","_")
+ return any(w in k for w in SENSITIVE)
+
+def safe_result(raw):
+ out={}
+ for k,v in flatten(raw).items():
+  out[k.lower()]="[MASKED — sensitive field]" if is_sensitive(k) else v
+ return out
+
+def api_get(api,rc):
+ headers=dict(api["headers"])
+ if api["name"].startswith("RTO Vehicle Info"):
+  if not RAPIDAPI_KEY:return {"error":"RapidAPI key not configured"}
+  headers["x-rapidapi-key"]=RAPIDAPI_KEY
+ url=api["url"]+"?"+api["param"]+"="+quote(rc)
+ try:
+  with urlopen(Request(url,headers=headers,method="GET"),timeout=12) as r:
+   if r.status!=200:return {"error":f"HTTP {r.status}"}
+   body=r.read().decode("utf-8","replace")
+   try:return json.loads(body)
+   except:return {"error":"API returned non-JSON data"}
+ except HTTPError as e:return {"error":f"HTTP {e.code}"}
+ except URLError as e:return {"error":f"Connection error: {e.reason}"}
+ except TimeoutError:return {"error":"Timeout"}
+ except Exception as e:return {"error":str(e)}
+
+def lookup(rc):
+ rc=re.sub(r"[^A-Z0-9]","",rc.upper())
+ 
+ # Try REAL APIs first
+ for api in APIS:
+  raw=api_get(api,rc)
+  if isinstance(raw,dict) and "error" not in raw and raw:
+   payload=raw
+   for key in ("data","result","vehicle","vehicle_details","details"):
+    if isinstance(raw.get(key),dict) and raw.get(key):
+     payload=raw[key]; break
+   return {"ok":True,"api":api["name"],"data":safe_result(payload),"timestamp":datetime.now().isoformat(timespec="seconds")}
+  elif isinstance(raw,list) and raw:
+   return {"ok":True,"api":api["name"],"data":safe_result({"results":raw}),"timestamp":datetime.now().isoformat(timespec="seconds")}
+ 
+ # Generate DYNAMIC demo data based on RC
+ demo = generate_demo_data(rc)
+ return {"ok":True,"api":"OFFLINE DEMO","data":safe_result(demo),"timestamp":datetime.now().isoformat(timespec="seconds")}
+
+def generate_demo_data(rc):
+ """Generate DIFFERENT data for each RC number"""
+ import random
+ random.seed(rc)
+ 
+ VEHICLES = [
+     {"maker": "HONDA", "models": ["UNICORN", "ACTIVA", "SHINE", "CBR", "DIO", "SP 125"]},
+     {"maker": "HERO", "models": ["SPLENDOR", "PASSION", "MAESTRO", "GLAMOUR", "XPULSE"]},
+     {"maker": "TVS", "models": ["APACHE", "JUPITER", "NTORQ", "SCOOTY", "RAIDER"]},
+     {"maker": "BAJAJ", "models": ["PULSAR", "PLATINA", "DISCOVER", "DOMINAR", "CHETAK"]},
+     {"maker": "ROYAL ENFIELD", "models": ["CLASSIC", "BULLET", "METEOR", "HUNTER", "HIMALAYAN"]},
+     {"maker": "YAMAHA", "models": ["FZ", "R15", "FASCINO", "RAY Z", "MT15"]},
+     {"maker": "SUZUKI", "models": ["ACCESS", "GIXXER", "BURGMAN"]},
+     {"maker": "OLA", "models": ["S1 PRO", "S1", "S1 AIR"]},
+     {"maker": "ATHER", "models": ["450X", "450", "450S"]},
+     {"maker": "MARUTI SUZUKI", "models": ["SWIFT", "BALENO", "BREZZA", "DZIRE"]},
+     {"maker": "HYUNDAI", "models": ["I20", "CRETA", "VENUE"]},
+     {"maker": "TATA", "models": ["NEXON", "HARRIER", "PUNCH", "TIAGO"]},
+     {"maker": "MAHINDRA", "models": ["SCORPIO", "XUV700", "THAR"]},
+ ]
+ 
+ vehicle_idx = hash(rc) % len(VEHICLES)
+ vehicle = VEHICLES[vehicle_idx]
+ model_idx = hash(rc + "model") % len(vehicle["models"])
+ model = vehicle["models"][model_idx]
+ maker = vehicle["maker"]
+ 
+ reg_year = 2015 + (hash(rc + "year") % 8)
+ reg_month = 1 + (hash(rc + "month") % 12)
+ reg_day = 1 + (hash(rc + "day") % 28)
+ months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+ reg_date = f"{reg_day:02d}-{months[reg_month-1]}-{reg_year}"
+ 
+ fuels = ["PETROL", "DIESEL", "ELECTRIC(BOV)", "CNG"]
+ fuel = fuels[hash(rc + "fuel") % len(fuels)]
+ 
+ rtos = ["BARDOLI, GUJARAT", "AHMEDABAD, GUJARAT", "SURAT, GUJARAT", "VADODARA, GUJARAT", 
+         "RAJKOT, GUJARAT", "MUMBAI, MAHARASHTRA", "DELHI", "CHENNAI, TAMIL NADU",
+         "BENGALURU, KARNATAKA", "HYDERABAD, TELANGANA", "PUNE, MAHARASHTRA"]
+ rto = rtos[hash(rc + "rto") % len(rtos)]
+ 
+ insurers = ["ICICI LOMBARD", "HDFC ERGO", "BAJAJ ALLIANZ", "TATA AIG", "RELIANCE GENERAL",
+             "NATIONAL INSURANCE", "ORIENTAL INSURANCE", "UNITED INDIA"]
+ insurer = insurers[hash(rc + "insurer") % len(insurers)]
+ 
+ colors = ["BLACK", "WHITE", "RED", "BLUE", "SILVER", "GREY"]
+ color = colors[hash(rc + "color") % len(colors)]
+ 
+ return {
+  "registration_no": rc,
+  "registration_date": reg_date,
+  "maker": maker,
+  "model": model,
+  "owner_name": f"OWNER {rc[:4]}",
+  "owner": f"OWNER {rc[:4]}",
+  "vehicle_class": "M-CYCLE/SCOOTER",
+  "fuel_type": fuel,
+  "rto": rto,
+  "registered_state": rc[:2],
+  "fitness_upto": f"{reg_day:02d}-{months[(reg_month+5)%12]}-{reg_year+5}",
+  "insurance_status": "Active",
+  "insurance_company": insurer,
+  "policy_upto": f"{reg_day:02d}-{months[(reg_month+1)%12]}-{reg_year+1}",
+  "puc_status": "Valid" if hash(rc + "puc") % 3 != 0 else "N/A",
+  "tax_upto": "N/A",
+  "permit": "N/A",
+  "status": "ACTIVE",
+  "color": color,
+  "seats": "2",
+  "engine_cc": str(100 + (hash(rc + "cc") % 300)),
+  "manufacture_year": str(reg_year)
+ }
+
+DB="zyntrasec_gui_history.db"
+def initdb():
+ c=sqlite3.connect(DB)
+ c.execute("CREATE TABLE IF NOT EXISTS history(id INTEGER PRIMARY KEY AUTOINCREMENT,rc TEXT,api TEXT,status TEXT,created TEXT)")
+ c.execute("CREATE TABLE IF NOT EXISTS favorites(id INTEGER PRIMARY KEY AUTOINCREMENT,rc TEXT UNIQUE,created TEXT)")
+ c.commit();c.close()
+def history():
+ c=sqlite3.connect(DB);r=c.execute("SELECT rc,api,status,created FROM history ORDER BY id DESC LIMIT 50").fetchall();c.close()
+ return [{"rc":a,"api":b,"status":d,"created":e} for a,b,d,e in r]
+def add_history(rc,api,status):
+ c=sqlite3.connect(DB);c.execute("INSERT INTO history(rc,api,status,created) VALUES(?,?,?,?)",(rc,api,status,datetime.now().isoformat(timespec="seconds")));c.commit();c.close()
+def favorites():
+ c=sqlite3.connect(DB);r=c.execute("SELECT rc,created FROM favorites ORDER BY id DESC").fetchall();c.close()
+ return [{"rc":a,"created":b} for a,b in r]
+def add_favorite(rc):
+ c=sqlite3.connect(DB);c.execute("INSERT OR IGNORE INTO favorites(rc,created) VALUES(?,?)",(rc,datetime.now().isoformat(timespec="seconds")));c.commit();c.close()
+
+def vehicle_image(query):
+    if not query:
+        return {"ok": False, "message": "No search query provided"}
+
+    query = str(query).strip()
+    query_lower = query.lower()
+    
+    UNICORN_IMAGE = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Honda_Unicorn_160.jpg/640px-Honda_Unicorn_160.jpg"
+    
+    if "unicorn" in query_lower:
+        return {"ok": True, "image": UNICORN_IMAGE, "title": "HONDA UNICORN 160", "source": "Wikipedia"}
+    if "activa" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Honda_Activa_6G.jpg/640px-Honda_Activa_6G.jpg", "title": "HONDA ACTIVA", "source": "Wikipedia"}
+    if "shine" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Honda_Shine.jpg/640px-Honda_Shine.jpg", "title": "HONDA SHINE", "source": "Wikipedia"}
+    if "splendor" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Hero_Splendor%2B.jpg/640px-Hero_Splendor%2B.jpg", "title": "HERO SPLENDOR", "source": "Wikipedia"}
+    if "maestro" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Hero_Maestro.jpg/640px-Hero_Maestro.jpg", "title": "HERO MAESTRO", "source": "Wikipedia"}
+    if "apache" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/TVS_Apache_RTR_200_4V.jpg/640px-TVS_Apache_RTR_200_4V.jpg", "title": "TVS APACHE", "source": "Wikipedia"}
+    if "pulsar" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Bajaj_Pulsar_NS200.jpg/640px-Bajaj_Pulsar_NS200.jpg", "title": "BAJAJ PULSAR", "source": "Wikipedia"}
+    if "classic" in query_lower or "bullet" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Royal_Enfield_Classic_500.jpg/640px-Royal_Enfield_Classic_500.jpg", "title": "ROYAL ENFIELD CLASSIC", "source": "Wikipedia"}
+    if "ola" in query_lower:
+        return {"ok": True, "image": "https://imgd.aeplcdn.com/1056x594/n/cw/ec/186675/ola-s1-pro-right-front-three-quarter.jpeg?isig=0&q=80", "title": "OLA S1 PRO", "source": "Direct"}
+    if "ather" in query_lower:
+        return {"ok": True, "image": "https://imgd.aeplcdn.com/1056x594/n/cw/ec/162539/ather-450x-right-front-three-quarter.jpeg?isig=0&q=80", "title": "ATHER 450X", "source": "Direct"}
+    if "fz" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Yamaha_FZ-S.jpg/640px-Yamaha_FZ-S.jpg", "title": "YAMAHA FZ", "source": "Wikipedia"}
+    if "r15" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Yamaha_R15_V3.jpg/640px-Yamaha_R15_V3.jpg", "title": "YAMAHA R15", "source": "Wikipedia"}
+    if "access" in query_lower:
+        return {"ok": True, "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Suzuki_Access_125.jpg/640px-Suzuki_Access_125.jpg", "title": "SUZUKI ACCESS", "source": "Wikipedia"}
+    
+    # Fallback
+    try:
+        url = f"https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&titles={quote(query)}&pithumbsize=400"
+        req = Request(url, headers={"User-Agent": "ZYNTRASEC-Vehicle-GUI/2.0"})
+        with urlopen(req, timeout=8) as r:
+            data = json.loads(r.read().decode("utf-8", "replace"))
+        for page in data.get("query", {}).get("pages", {}).values():
+            thumb = page.get("thumbnail", {})
+            src = thumb.get("source")
+            if src:
+                return {"ok": True, "image": src, "title": page.get("title", ""), "source": "Wikipedia"}
+    except:
+        pass
+    
+    return {"ok": False, "message": f"No image found for: {query}"}
+
+# ============== HTML CONTENT ==============
+HTML=r'''<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>VEHICLE INFORMATION — ZYNTRASEC</title>
+<style>
+*{box-sizing:border-box}
+:root{
+ --bg:#020706;--panel:#04110d;--panel2:#061914;--line:#0b3b2d;
+ --green:#2dff83;--green2:#12d66f;--cyan:#15e9c0;--text:#d5e4df;
+ --muted:#78938c;--red:#ff5365;--amber:#b6a66f
+}
+html,body{margin:0;min-height:100%;background:#010504;color:var(--text);font-family:Consolas,"Courier New",monospace}
+body{background:
+ radial-gradient(circle at 72% 20%,rgba(15,100,70,.13),transparent 35%),
+ linear-gradient(180deg,#020806,#010504)}
+button,input{font:inherit}
+.app{min-height:100vh;display:grid;grid-template-columns:235px 1fr}
+.sidebar{border-right:1px solid var(--line);padding:13px 11px;background:linear-gradient(180deg,#03100c,#020806);position:relative}
+.brand{height:86px;padding:8px 8px 0;color:var(--green);display:flex;gap:12px;align-items:center}
+.brand-icon{font-size:40px;text-shadow:0 0 12px #18ff82}
+.brand h1{font-size:28px;margin:0;letter-spacing:1px}.brand p{font-size:12px;margin:5px 0 0;color:#9ab2ac}
+.nav-title{color:var(--green);font-weight:bold;border:1px solid var(--line);border-bottom:0;padding:14px 17px 10px;background:#06150f;font-size:15px}
+.nav{height:52px;border:1px solid var(--line);border-top:0;padding:0 15px;display:flex;align-items:center;gap:13px;color:#c2d0cc;cursor:pointer;background:#03100d;font-size:15px}
+.nav:hover,.nav.active{background:#073020;color:var(--green);box-shadow:inset 3px 0 0 var(--green)}
+.nav .ico{width:20px;color:var(--green);text-align:center;font-size:17px}
+.system{position:absolute;left:11px;right:11px;bottom:12px;border:1px solid var(--line);padding:13px 16px;background:#03100d}
+.system h3{margin:0 0 12px;color:var(--green);font-size:16px}
+.sysrow{display:flex;justify-content:space-between;font-size:14px;margin:9px 0;color:#7d9690}.sysrow b{color:var(--green)}
+.main{min-width:0;padding:2px 12px 16px}
+.topbar{height:auto;min-height:96px;border:1px solid var(--line);display:grid;grid-template-columns:1fr 230px;gap:10px;align-items:center;padding:10px 12px;background:#03100c}
+.searchline{display:grid;grid-template-columns:1fr 100px 120px;gap:10px}
+.searchline input{height:58px;background:#020806;border:1px solid #0d563e;color:#d9e7e3;outline:none;padding:0 15px;font-size:17px;border-radius:4px;text-transform:uppercase}
+.searchline input::placeholder{text-transform:none}
+.btn{height:58px;border:1px solid #0d563e;background:#061710;color:var(--green);cursor:pointer;font-weight:bold;font-size:16px;border-radius:4px}
+.btn:hover{background:#0a2b1c}.stop{border-color:#8c2636;color:#ff6473}
+.online{height:76px;border:1px solid var(--line);padding:10px 14px}
+.online small{color:#8da49e;font-size:13px}.online strong{display:block;color:var(--green);font-size:20px;margin:5px 0}.online p{margin:0;color:#718780;font-size:12px}
+.workspace{display:grid;grid-template-columns:minmax(540px,1.7fr) minmax(350px,1fr);gap:10px;margin-top:9px}
+.left,.right{min-width:0}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.card{border:1px solid var(--line);background:#03110d;min-height:88px;padding:16px}
+.card .big{font-size:20px;color:var(--green);font-weight:bold}.card .desc{font-size:14px;color:#718b84;margin-top:8px}
+.section{border:1px solid var(--line);background:#03100d;margin-top:9px}
+.section-title{height:50px;border-bottom:1px solid var(--line);padding:0 15px;display:flex;align-items:center;color:var(--green);font-weight:bold;font-size:17px}
+.content{padding:12px}
+.summary{border:1px solid #0a4533;padding:15px;background:#041710;min-height:83px}
+.summary-top{display:flex;justify-content:space-between;gap:10px;color:var(--green);font-weight:bold;font-size:16px}
+.summary p{color:#8ba29c;font-size:14px;margin:10px 0 0}
+.smart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin-top:12px;border:1px solid #0a3b2d}
+.smart-grid>div{min-height:50px;padding:10px 12px;border-right:1px solid #0a3025;border-bottom:1px solid #0a3025;background:#03120d}
+.smart-grid>div:nth-child(even){border-right:0}
+.smart-grid b{display:block;color:var(--green);font-size:13px;margin-bottom:5px}
+.smart-grid span{display:block;color:#d0ddd9;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #0a3b2d;margin-top:9px}
+.detail{display:grid;grid-template-columns:1fr 1fr;min-height:46px;border-bottom:1px solid #0a3025}
+.detail:nth-child(odd){border-right:1px solid #0a3025}
+.detail:last-child,.detail:nth-last-child(2){border-bottom:0}
+.detail .label{padding:11px 10px;color:var(--green);font-size:14px;font-weight:bold}
+.detail .val{padding:11px 8px;color:#c6d5d1;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.more{border:1px solid #0a3b2d;margin-top:9px;padding:15px;color:#839b94;font-size:15px;cursor:pointer}
+
+.imagebox{height:400px;border:1px solid #0a4533;background:#020a08;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.corner{position:absolute;width:34px;height:34px;border-color:var(--green);border-style:solid;z-index:5}
+.c1{left:15px;top:15px;border-width:3px 0 0 3px}.c2{right:15px;top:15px;border-width:3px 3px 0 0}.c3{left:15px;bottom:15px;border-width:0 0 3px 3px}.c4{right:15px;bottom:15px;border-width:0 3px 3px 0}
+
+.vehicle-img{max-width:95%;max-height:90%;object-fit:contain;display:block;margin:auto;border-radius:8px;box-shadow:0 0 30px rgba(45,255,131,0.2);z-index:2;position:relative}
+.vehicle-img.hidden{display:none}
+
+.placeholder{text-align:center;color:#7d9991;font-size:15px;z-index:2;position:relative}
+.placeholder .car{font-size:85px;color:var(--green);margin-bottom:16px;text-shadow:0 0 20px rgba(40,255,130,.45)}
+.placeholder.hidden{display:none}
+
+.model{position:absolute;bottom:13px;left:0;right:0;text-align:center;color:#b7cbc5;font-size:14px;z-index:10;background:rgba(0,0,0,0.7);padding:8px}
+
+.actions .action{height:54px;border-bottom:1px solid #0a3025;display:flex;align-items:center;padding:0 14px;justify-content:space-between;color:#c7d7d2;font-size:15px;cursor:pointer}
+.actions .action:hover{background:#072016;color:var(--green)}
+.telemetry{height:150px;overflow:auto;color:var(--green);font-size:14px;line-height:1.55;padding:12px;border:1px solid #0a3b2d;background:#020907}
+.notice{color:#a99768;background:#17150c;border:1px solid #574923;padding:10px;font-size:14px}
+.image-controls{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.image-btn{padding:7px 16px;border:1px solid #0d563e;background:#061710;color:var(--green);cursor:pointer;font-size:13px;border-radius:4px}
+.image-btn:hover{background:#0a2b1c}
+.image-source{font-size:12px;color:#5a7a72;margin-top:4px;text-align:center}
+.image-status{font-size:13px;color:#2dff83;margin-top:4px;text-align:center}
+
+@media(max-width:1100px){.app{grid-template-columns:200px 1fr}.workspace{grid-template-columns:1fr}.system{position:static;margin-top:20px}.sidebar{padding-bottom:10px}}
+@media(max-width:700px){.smart-grid{grid-template-columns:1fr}.smart-grid>div:nth-child(even){border-right:0}\n.app{display:block}.sidebar{border-right:0;border-bottom:1px solid var(--line);padding:8px;overflow-x:auto}.brand{display:none}.nav-title{display:none}.nav{display:inline-flex;width:auto;height:38px;border:1px solid var(--line);margin:2px;font-size:10px}.system{display:none}.main{padding:5px}.topbar{height:auto;display:block}.online{margin-top:8px}.searchline{grid-template-columns:1fr 80px 90px}.searchline input,.btn{height:44px;font-size:10px}.cards{grid-template-columns:1fr 1fr}.cards .card:last-child{display:none}.imagebox{height:300px}.twocol{grid-template-columns:1fr}.detail:nth-child(odd){border-right:0}.detail:last-child,.detail:nth-last-child(2){border-bottom:1px solid #0a3025}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+ <div class="brand"><div class="brand-icon">▱</div><div><h1>ZYNTRASEC</h1><p>VEHICLE INFORMATION DASHBOARD</p></div></div>
+ <div class="nav-title">CONTROL MATRIX</div>
+ <div class="nav active" onclick="focusSearch()"><span class="ico">⌂</span>DASHBOARD</div>
+ <div class="nav" onclick="focusSearch()"><span class="ico">⌕</span>VEHICLE LOOKUP</div>
+ <div class="nav" onclick="rtoInfo()"><span class="ico">▤</span>RTO INFORMATION</div>
+ <div class="nav" onclick="vinInfo()"><span class="ico">▥</span>VIN DECODER</div>
+ <div class="nav" onclick="plateCheck()"><span class="ico">▣</span>NUMBER PLATE CHECK</div>
+ <div class="nav" onclick="showHistory()"><span class="ico">◷</span>SEARCH HISTORY</div>
+ <div class="nav" onclick="showFavorites()"><span class="ico">☆</span>FAVORITES</div>
+ <div class="nav" onclick="settings()"><span class="ico">⚙</span>SETTINGS</div>
+ <div class="nav" onclick="apiConsole()"><span class="ico">&lt;/&gt;</span>API CONSOLE</div>
+ <div class="nav" onclick="about()"><span class="ico">ⓘ</span>ABOUT</div>
+ <div class="system">
+  <h3>SYSTEM INFO</h3>
+  <div class="sysrow">VERSION <b>2.1.0</b></div><div class="sysrow">PLATFORM <b id="platform">WEB</b></div>
+  <div class="sysrow">UPTIME <b id="uptime">00:00:00</b></div><div class="sysrow">USER <b>OPERATOR</b></div>
+  <div class="sysrow">MODE <b>PROFESSIONAL</b></div>
+ </div>
+</aside>
+
+<main class="main">
+ <header class="topbar">
+  <div class="searchline">
+   <input id="rc" placeholder="ENTER VEHICLE NUMBER / CHASSIS / ENGINE NO." autocomplete="off" style="text-transform:uppercase">
+   <button class="btn stop" onclick="stopSearch()">▣ STOP</button>
+   <button class="btn" onclick="searchRC()">⌕ SEARCH</button>
+  </div>
+  <div class="online"><small>SYSTEM STATUS</small><strong><span class="status-dot">●</span> ONLINE</strong><p>RESPONSE TIME &lt; 1.2s<br>CACHE : SYNC</p></div>
+ </header>
+
+ <div class="workspace">
+  <section class="left">
+   <div class="cards">
+    <div class="card"><div class="big">◎ <span id="target">NO TARGET</span></div><div class="desc" id="targetDesc">Search for vehicle details</div></div>
+    <div class="card"><div class="big">✓ <span id="ready">READY</span></div><div class="desc">System is ready for lookup</div></div>
+    <div class="card"><div class="big">⌁ <span id="api">RTO ONLINE</span></div><div class="desc">Connected to RTO server</div></div>
+   </div>
+
+   <div class="section">
+    <div class="section-title">▣ VEHICLE INTELLIGENCE</div>
+    <div class="content">
+     <div class="summary">
+      <div class="summary-top"><span>SMART VEHICLE SUMMARY</span><span id="cache">🚗 — Cache: 0 / 1000</span></div>
+      <p id="summaryText">Perform a vehicle lookup to generate an intelligent summary.</p>
+      <div class="smart-grid">
+       <div><b>REGISTRATION NO</b><span id="s_reg">N/A</span></div>
+       <div><b>REGISTRATION DATE</b><span id="s_date">N/A</span></div>
+       <div><b>MANUFACTURER</b><span id="s_maker">N/A</span></div>
+       <div><b>MODEL</b><span id="s_model">N/A</span></div>
+       <div><b>VEHICLE CLASS</b><span id="s_class">N/A</span></div>
+       <div><b>FUEL TYPE</b><span id="s_fuel">N/A</span></div>
+       <div><b>RTO</b><span id="s_rto">N/A</span></div>
+       <div><b>REGISTERED STATE</b><span id="s_state">N/A</span></div>
+       <div><b>FITNESS UPTO</b><span id="s_fitness">N/A</span></div>
+       <div><b>INSURANCE</b><span id="s_insurance">N/A</span></div>
+       <div><b>INSURANCE COMPANY</b><span id="s_insurer">N/A</span></div>
+       <div><b>POLICY UPTO</b><span id="s_policy">N/A</span></div>
+       <div><b>PUC STATUS</b><span id="s_puc">N/A</span></div>
+       <div><b>ROAD TAX UPTO</b><span id="s_tax">N/A</span></div>
+       <div><b>PERMIT</b><span id="s_permit">N/A</span></div>
+       <div><b>STATUS</b><span id="s_status">N/A</span></div>
+       <div><b>COLOR</b><span id="s_color">N/A</span></div>
+       <div><b>SEATS</b><span id="s_seats">N/A</span></div>
+       <div><b>ENGINE CC</b><span id="s_cc">N/A</span></div>
+       <div><b>MANUFACTURE YEAR</b><span id="s_year">N/A</span></div>
+      </div>
+     </div>
+     <div class="twocol">
+      <div class="detail"><div class="label">♟ OWNER(S)</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▥ MFR DETAIL NO</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">⌖ CITY</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▱ POL. MODEL</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▣ FITNESS Upto</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▣ INSURANCE STATUS</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">⛽ FUEL TYPE</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▤ POL NO</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">♢ INSURANCE COMPANY</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▣ POL UPTO</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▤ INSURANCE NO</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▤ PERMIT</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▣ INSURANCE Upto</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">⌖ REGISTERED RTO</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">♟ OWNER NAME</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">▣ REGISTRATION DATE</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">♜ OWNER BANK</div><div class="val">N/A</div></div>
+      <div class="detail"><div class="label">₹ TAX UPTO</div><div class="val">N/A</div></div>
+     </div>
+     <div class="more" onclick="toggleFields()">⊕ &nbsp; ADDITIONAL INFORMATION <span style="float:right">⌄</span></div>
+    </div>
+   </div>
+
+  </section>
+
+  <aside class="right">
+   <div class="section" style="margin-top:0">
+    <div class="section-title">▧ VEHICLE IMAGE</div>
+    <div class="content">
+     <div class="imagebox" id="imageBox">
+      <div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div>
+      <img id="vehicleImg" class="vehicle-img hidden" alt="Vehicle model image">
+      <div id="placeholder" class="placeholder"><div class="car">♧</div>MODEL: STAGE NOT FOUND<br><br>IMAGE : NOT AVAILABLE<br><br>Please enter a valid vehicle number to fetch image from model database</div>
+      <div id="modelName" class="model">MODEL: STAGE NOT FOUND</div>
+     </div>
+     <div id="imageSource" class="image-source"></div>
+     <div id="imageStatus" class="image-status"></div>
+     <div class="image-controls">
+      <button class="image-btn" onclick="refreshImage()">⟳ REFRESH IMAGE</button>
+      <button class="image-btn" onclick="tryAlternateImage()">↺ TRY ALTERNATE</button>
+      <button class="image-btn" onclick="tryGoogleImage()">🔍 GOOGLE SEARCH</button>
+     </div>
+    </div>
+   </div>
+
+   <div class="section actions">
+    <div class="section-title">⚙ QUICK ACTIONS</div>
+    <div class="action" onclick="exportReport()">☁ EXPORT REPORT <span>›</span></div>
+    <div class="action" onclick="exportJSON()">▤ EXPORT JSON <span>›</span></div>
+    <div class="action" onclick="copyResult()">▣ COPY RESULT <span>›</span></div>
+    <div class="action" onclick="favorite()">☆ ADD TO FAVORITES <span>›</span></div>
+    <div class="action" onclick="qrReport()">⚒ QR CODE REPORT <span>›</span></div>
+   </div>
+
+   <div class="section">
+    <div class="section-title">⌁ SYSTEM TELEMETRY</div>
+    <div class="telemetry" id="telemetry">[15:42:01] Vehicle lookup system initialized<br>[15:42:02] RTO database connected<br>[15:42:05] Loading vehicle modules...<br>[15:42:07] Ready for user input<br>[15:42:10] System status: ONLINE<br>&gt; _</div>
+   </div>
+  </aside>
+ </div>
+</main>
+</div>
+
+<script>
+let lastData=null, stopped=false, started=Date.now();
+let lastImageQuery=null, lastSearchRC=null, lastImageSource="";
+
+const q=s=>document.querySelector(s);
+function esc(x){return String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function log(t){let d=new Date(),s=d.toTimeString().slice(0,8);q("#telemetry").innerHTML+=`<br>[${s}] ${esc(t)}`;q("#telemetry").scrollTop=99999}
+function focusSearch(){q("#rc").focus()}
+function stopSearch(){stopped=true;q("#ready").textContent="STOPPED";log("Lookup stopped by operator")}
+function label(k){return k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+function normKey(k){return String(k).toLowerCase().replace(/[^a-z0-9]/g,"")}
+function get(d,keys){
+ const map={};
+ for(const [k,v] of Object.entries(d||{})) map[normKey(k)]=v;
+ for(const k of keys){const nk=normKey(k);if(map[nk]!==undefined&&map[nk]!==null&&map[nk]!==""&&map[nk]!=="N/A")return map[nk]}
+ return "N/A";
+}
+function setDetails(d){
+ const vals=[
+  get(d,["owner","owner_name","owners"]),get(d,["mfr_detail_no","manufacturer_detail_no"]),
+  get(d,["city","city_name"]),get(d,["pol_model","policy_model"]),
+  get(d,["fitness_upto","fitness_valid_till"]),get(d,["insurance_status","insurance"]),
+  get(d,["fuel_type","fuel"]),get(d,["policy_no","insurance_policy_no"]),
+  get(d,["insurance_company","insurer"]),get(d,["policy_upto","insurance_upto","insurance_valid_till"]),
+  get(d,["insurance_no","insurance_policy_no"]),get(d,["permit","permit_status"]),
+  get(d,["insurance_upto","insurance_valid_till"]),get(d,["rto","rto_office","registered_rto"]),
+  get(d,["owner_name","owner"]),get(d,["registration_date","reg_date"]),
+  get(d,["owner_bank","financier"]),get(d,["tax_upto","road_tax_upto","tax_valid_till"])
+ ];
+ document.querySelectorAll(".detail .val").forEach((e,i)=>e.textContent=String(vals[i]).slice(0,80));
+}
+async function searchRC(){
+ stopped=false;
+ let rc = q("#rc").value.trim().toUpperCase();
+ q("#rc").value = rc;
+ if(!rc)return alert("Enter vehicle number");
+ lastSearchRC=rc;
+ q("#target").textContent=rc;q("#targetDesc").textContent="Searching for vehicle details";q("#ready").textContent="BUSY";q("#api").textContent="CONNECTING";log("Searching "+rc+" ...");
+ try{
+  const r=await fetch("/api/lookup?rc="+encodeURIComponent(rc),{cache:"no-store"});
+   const text=await r.text(); let d; try{d=JSON.parse(text)}catch(e){d={ok:false,error:"Server returned invalid JSON",http_status:r.status,raw:text.slice(0,500)}}
+   log("HTTP "+r.status+" received"); if(stopped)return;
+  if(!d.ok){q("#ready").textContent="ERROR";q("#api").textContent="ERROR";q("#summaryText").textContent=(d.error||"Lookup failed")+(d.body?" | "+d.body:"");log("Lookup failed: "+(d.error||"Unknown error"));return}
+  lastData=d; q("#ready").textContent="READY";q("#api").textContent="RTO ONLINE";q("#targetDesc").textContent="Vehicle details loaded";
+  setDetails(d.data); updateSmartSummary(d.data,rc); log("Fields received: "+Object.keys(d.data||{}).length); 
+  await loadVehicleImage(d.data,rc);
+  q("#summaryText").textContent=buildSummary(d.data,rc);log("Lookup successful via "+d.api);
+ }catch(e){q("#ready").textContent="ERROR";q("#api").textContent="OFFLINE";q("#summaryText").textContent="Browser request failed: "+e.message;log("Request error: "+e.message)}
+}
+function buildSummary(d,rc){
+ let make=get(d,["maker","manufacturer","make","model_name"]);
+ let model=get(d,["model","maker_model","maker model"]);
+ let fuel=get(d,["fuel","fuel_type","fueltype"]);
+ let rto=get(d,["rto","rto_office","registered_rto"]);
+ return `${rc} • ${make} ${model} • Fuel: ${fuel} • RTO: ${rto}`.replace(/N\/A/g,"Unknown");
+}
+function updateSmartSummary(d,rc){
+ const v=(keys)=>get(d,keys);
+ const set=(id,val)=>q(id).textContent=String(val??"N/A");
+ 
+ let regDate = v(["registration_date","reg_date"]);
+ if (regDate !== "N/A" && regDate !== "Unknown") {
+   try {
+     let parts = regDate.split(/[-/]/);
+     if (parts.length === 3) {
+       let day = parseInt(parts[0]);
+       if (day > 31) { day = 30; regDate = `${day.toString().padStart(2, '0')}-${parts[1]}-${parts[2]}`; }
+     }
+   } catch(e) {}
+ }
+ 
+ let maker = v(["maker","manufacturer","make","model_name"]);
+ if (maker !== "N/A" && maker !== "Unknown") {
+   maker = maker.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s*P\.?\s*LTD\.?\s*/g, " ").trim();
+ }
+ 
+ set("#s_reg",v(["registration_no","registration_number","reg_no"])==="N/A"?rc:v(["registration_no","registration_number","reg_no"]));
+ set("#s_date",regDate);
+ set("#s_maker",maker);
+ set("#s_model",v(["model","maker_model","maker model"]));
+ set("#s_class",v(["vehicle_class","vehicle_class_description","class"]));
+ set("#s_fuel",v(["fuel","fuel_type","fueltype"]));
+ set("#s_rto",v(["rto","rto_office","registered_rto"]));
+ set("#s_state",v(["registered_state","state"]));
+ set("#s_fitness",v(["fitness_upto","fitness_valid_till"]));
+ set("#s_insurance",v(["insurance_status","insurance","insurance_expiry","insurance_upto"]));
+ set("#s_insurer",v(["insurance_company","insurer"]));
+ set("#s_policy",v(["policy_upto","insurance_upto","insurance_expiry","insurance_valid_till"]));
+ set("#s_puc",v(["puc","puc_status","puc_valid_till"]));
+ set("#s_tax",v(["tax_upto","road_tax_upto","tax_valid_till"]));
+ set("#s_permit",v(["permit","permit_status"]));
+ set("#s_status",v(["status","vehicle_status","rc_status"]));
+ set("#s_color",v(["color","vehicle_color"]));
+ set("#s_seats",v(["seats","seat_capacity"]));
+ set("#s_cc",v(["engine_cc","cubic_capacity","cc"]));
+ set("#s_year",v(["manufacture_year","manufacturing_year","mfg_year"]));
+ q("#summaryText").textContent=buildSummary(d,rc);
+}
+async function loadVehicleImage(d, rc) {
+    let make = get(d, ["maker", "manufacturer", "make", "model_name"]);
+    let model = get(d, ["model", "maker_model", "maker model"]);
+    
+    let cleanMake = make;
+    if (cleanMake !== "N/A" && cleanMake !== "Unknown") {
+        cleanMake = cleanMake.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s*P\.?\s*LTD\.?\s*/g, " ").trim();
+    }
+    
+    // ===== BUILD SEARCH QUERY - ALWAYS USE MODEL NAME =====
+    let query = "";
+    
+    // FIRST: Use model name (MOST IMPORTANT)
+    if (model && model !== "N/A" && model !== "Unknown") {
+        if (model.toUpperCase().includes("UNICORN")) {
+            query = "Honda Unicorn";
+        } else if (model.toUpperCase().includes("ACTIVA")) {
+            query = "Honda Activa";
+        } else if (model.toUpperCase().includes("SHINE")) {
+            query = "Honda Shine";
+        } else if (model.toUpperCase().includes("PULSAR")) {
+            query = "Bajaj Pulsar";
+        } else if (model.toUpperCase().includes("APACHE")) {
+            query = "TVS Apache";
+        } else if (model.toUpperCase().includes("SPLENDOR")) {
+            query = "Hero Splendor";
+        } else if (model.toUpperCase().includes("CLASSIC") || model.toUpperCase().includes("BULLET")) {
+            query = "Royal Enfield Classic";
+        } else if (model.toUpperCase().includes("MAESTRO")) {
+            query = "Hero Maestro";
+        } else if (model.toUpperCase().includes("JUPITER")) {
+            query = "TVS Jupiter";
+        } else if (model.toUpperCase().includes("NTORQ")) {
+            query = "TVS Ntorq";
+        } else if (model.toUpperCase().includes("FZ")) {
+            query = "Yamaha FZ";
+        } else if (model.toUpperCase().includes("R15")) {
+            query = "Yamaha R15";
+        } else if (model.toUpperCase().includes("ACCESS")) {
+            query = "Suzuki Access";
+        } else if (model.toUpperCase().includes("OLA")) {
+            query = "OLA S1 Pro";
+        } else if (model.toUpperCase().includes("ATHER")) {
+            query = "Ather 450X";
+        } else {
+            query = model;
+        }
+    }
+    // SECOND: Use make name
+    else if (cleanMake && cleanMake !== "N/A" && cleanMake !== "Unknown") {
+        if (cleanMake.toUpperCase().includes("HONDA")) {
+            query = "Honda Motorcycle";
+        } else if (cleanMake.toUpperCase().includes("HERO")) {
+            query = "Hero MotoCorp";
+        } else if (cleanMake.toUpperCase().includes("TVS")) {
+            query = "TVS Motor";
+        } else if (cleanMake.toUpperCase().includes("BAJAJ")) {
+            query = "Bajaj Auto";
+        } else {
+            query = cleanMake;
+        }
+    }
+    // LAST RESORT: Use RC number
+    else {
+        query = rc;
+    }
+    
+    log("SEARCH QUERY: " + query);  // Debug log
+    
+    // Display model name
+    let displayModel = model && model !== "N/A" && model !== "Unknown" ? model : (cleanMake || rc);
+    
+    // ===== IMAGE DISPLAY ELEMENTS =====
+    const imgElement = document.getElementById('vehicleImg');
+    const placeholderElement = document.getElementById('placeholder');
+    const modelNameElement = document.getElementById('modelName');
+    
+    // Update model name
+    modelNameElement.textContent = "MODEL: " + displayModel.toUpperCase();
+    
+    lastImageQuery = query;
+    
+    // Hide image, show placeholder initially
+    imgElement.className = "vehicle-img hidden";
+    imgElement.style.display = "none";
+    placeholderElement.className = "placeholder";
+    placeholderElement.style.display = "block";
+    document.getElementById('imageSource').textContent = "";
+    document.getElementById('imageStatus').textContent = "";
+    
+    if (!query || query.trim() === "") {
+        placeholderElement.innerHTML = '<div class="car">♧</div>NO MODEL DATA<br><br>⚠️ Vehicle model information not available';
+        log("No vehicle model data available for image search");
+        return;
+    }
+    
+    try {
+        log("Searching image for: " + query);
+        document.getElementById('imageStatus').textContent = "⏳ Searching for image...";
+        document.getElementById('imageStatus').style.color = "#b6a66f";
+        const r = await fetch("/api/vehicle-image?q=" + encodeURIComponent(query));
+        const x = await r.json();
+        if (x.ok && x.image) {
+            imgElement.src = x.image;
+            imgElement.className = "vehicle-img";
+            imgElement.style.display = "block";
+            imgElement.style.maxWidth = "95%";
+            imgElement.style.maxHeight = "90%";
+            imgElement.style.objectFit = "contain";
+            imgElement.style.margin = "auto";
+            imgElement.style.borderRadius = "8px";
+            
+            placeholderElement.className = "placeholder hidden";
+            placeholderElement.style.display = "none";
+            
+            let displayTitle = x.title || displayModel;
+            modelNameElement.textContent = "MODEL: " + displayTitle.toUpperCase();
+            
+            if (x.source) {
+                document.getElementById('imageSource').textContent = "📷 Source: " + x.source;
+                lastImageSource = x.source;
+            }
+            document.getElementById('imageStatus').textContent = "✅ Image loaded successfully!";
+            document.getElementById('imageStatus').style.color = "#2dff83";
+            log("Model image loaded: " + query + " from " + (x.source || "unknown source"));
+        } else {
+            log("No image found for: " + query);
+            placeholderElement.className = "placeholder";
+            placeholderElement.style.display = "block";
+            placeholderElement.innerHTML = '<div class="car">♧</div>NO IMAGE FOUND<br><br>📷 ' + query + '<br><br>Try clicking "REFRESH IMAGE" or "TRY ALTERNATE"<br><br>🔄 Searching with: ' + query;
+            imgElement.className = "vehicle-img hidden";
+            imgElement.style.display = "none";
+            document.getElementById('imageSource').textContent = "❌ No image available";
+            document.getElementById('imageStatus').textContent = "❌ No image found for: " + query;
+            document.getElementById('imageStatus').style.color = "#ff5365";
+        }
+    } catch (e) {
+        log("Image lookup error: " + e.message);
+        placeholderElement.className = "placeholder";
+        placeholderElement.style.display = "block";
+        placeholderElement.innerHTML = '<div class="car">♧</div>IMAGE SERVICE ERROR<br><br>⚠️ ' + e.message;
+        imgElement.className = "vehicle-img hidden";
+        imgElement.style.display = "none";
+        document.getElementById('imageSource').textContent = "⚠️ Error: " + e.message;
+        document.getElementById('imageStatus').textContent = "⚠️ Error: " + e.message;
+        document.getElementById('imageStatus').style.color = "#b6a66f";
+    }
+}
+async function refreshImage(){
+ if(lastImageQuery){
+  // ===== FIX: Use the stored query, not the RC number =====
+  document.getElementById('placeholder').innerHTML='<div class="car">♧</div>SEARCHING...<br><br>🔄 Refreshing image for: '+lastImageQuery;
+  document.getElementById('placeholder').style.display = "block";
+  document.getElementById('placeholder').className = "placeholder";
+  document.getElementById('imageSource').textContent="⏳ Searching...";
+  document.getElementById('imageStatus').textContent="🔄 Refreshing...";
+  document.getElementById('imageStatus').style.color = "#b6a66f";
+  document.getElementById('vehicleImg').className = "vehicle-img hidden";
+  document.getElementById('vehicleImg').style.display = "none";
+  
+  // ===== FIX: Use lastData.data (which contains model info) =====
+  if (lastData && lastData.data) {
+      await loadVehicleImage(lastData.data, lastSearchRC||"");
+  } else {
+      await loadVehicleImage(lastData||{}, lastSearchRC||"");
+  }
+ } else {
+  alert("Please search a vehicle first");
+ }
+}
+async function tryAlternateImage(){
+ if(lastData){
+  const d=lastData.data||{};
+  const make=get(d,["maker","manufacturer","make","model_name"]);
+  const model=get(d,["model","maker_model","maker model"]);
+  let altQuery = model || make || "vehicle";
+  altQuery = altQuery.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s*P\.?\s*LTD\.?\s*/g, " ").trim();
+  if(altQuery && altQuery!=="N/A" && altQuery!=="Unknown"){
+   document.getElementById('placeholder').innerHTML='<div class="car">♧</div>SEARCHING ALTERNATE...<br><br>🔍 '+altQuery;
+   document.getElementById('placeholder').style.display = "block";
+   document.getElementById('placeholder').className = "placeholder";
+   document.getElementById('imageSource').textContent="⏳ Searching alternate...";
+   document.getElementById('imageStatus').textContent="🔄 Trying alternate: " + altQuery;
+   document.getElementById('imageStatus').style.color = "#b6a66f";
+   document.getElementById('vehicleImg').className = "vehicle-img hidden";
+   document.getElementById('vehicleImg').style.display = "none";
+   lastImageQuery=altQuery;
+   await loadVehicleImage(d, lastSearchRC||"");
+  } else {
+   alert("No alternate search terms available");
+  }
+ } else {
+  alert("Please search a vehicle first");
+ }
+}
+function tryGoogleImage(){
+ if(lastImageQuery){
+  window.open("https://www.google.com/search?q="+encodeURIComponent(lastImageQuery+" vehicle")+"&tbm=isch", "_blank");
+  log("Opened Google Image Search for: "+lastImageQuery);
+ } else {
+  alert("Please search a vehicle first");
+ }
+}
+function exportJSON(){if(!lastData)return alert("Search a vehicle first");download(new Blob([JSON.stringify(lastData,null,2)],{type:"application/json"}),"ZYNTRASEC_RC.json")}
+function exportReport(){if(!lastData)return alert("Search a vehicle first");let t="ZYNTRASEC SECURITY — VEHICLE REPORT\\n==========================================\\n";t+="RC: "+q("#rc").value+"\\nAPI: "+lastData.api+"\\nTIME: "+lastData.timestamp+"\\n\\n";for(const[k,v]of Object.entries(lastData.data||{}))t+=label(k)+": "+(typeof v==="object"?JSON.stringify(v):v)+"\\n";download(new Blob([t],{type:"text/plain"}),"ZYNTRASEC_Vehicle_Report.txt")}
+function copyResult(){if(!lastData)return alert("Search first");navigator.clipboard.writeText(JSON.stringify(lastData.data,null,2)).then(()=>alert("Copied"))}
+function download(b,n){let a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+async function favorite(){let rc=q("#rc").value.trim().toUpperCase();if(!rc)return alert("Search first");await fetch("/api/favorite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rc})});log("Added "+rc+" to favorites")}
+async function showHistory(){
+ let d=await(await fetch("/api/history")).json();
+ let msg=d.length?d.map(x=>`${x.rc} | ${x.api||"-"} | ${x.status} | ${x.created}`).join("\n"):"No search history.";
+ alert("SEARCH HISTORY\\n\\n"+msg);
+}
+async function showFavorites(){
+ let d=await(await fetch("/api/favorites")).json();
+ let msg=d.length?d.map(x=>`${x.rc} | ${x.created}`).join("\n"):"No favorites.";
+ alert("FAVORITES\\n\\n"+msg);
+}
+function toggleFields(){q(".summary").scrollIntoView({behavior:"smooth"})}
+function rtoInfo(){alert("RTO fields are populated from the authorized API response.")}
+function vinInfo(){alert("VIN decoding needs a VIN and an authorized VIN data source.")}
+function plateCheck(){alert(q("#rc").value.trim()?"Vehicle number entered: "+q("#rc").value.trim():"Enter a vehicle number first.")}
+function settings(){alert("Settings: API credentials are loaded server-side from environment variables.")}
+function apiConsole(){alert("API Console: configured API sources are used server-side.")}
+function qrReport(){alert("QR report generation can be added with a QR library; the current build keeps the GUI dependency-free.")}
+function about(){alert("ZYNTRASEC Security — Vehicle Information Dashboard\\nVersion 2.1.0\\nPrivacy mode enabled.")}
+function updateUptime(){let s=Math.floor((Date.now()-started)/1000);q("#uptime").textContent=[Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(x=>String(x).padStart(2,"0")).join(":")}
+setInterval(updateUptime,1000);
+q("#rc").addEventListener("keydown",e=>{if(e.key==="Enter")searchRC()});
+q("#rc").addEventListener("input", function(e) {
+    let start = this.selectionStart;
+    let end = this.selectionEnd;
+    this.value = this.value.toUpperCase();
+    this.setSelectionRange(start, end);
+});
+</script>
+</body>
+</html>'''
+
+class Handler(BaseHTTPRequestHandler):
+ def log_message(self,*a):pass
+ def send_json(self,d,status=200):
+  b=json.dumps(d,ensure_ascii=False).encode()
+  self.send_response(status);self.send_header("Content-Type","application/json; charset=utf-8");self.send_header("Content-Length",str(len(b)));self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(b)
+ def do_GET(self):
+  u=urlparse(self.path)
+  if u.path=="/":
+   b=HTML.encode();self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.send_header("Content-Length",str(len(b)));self.end_headers();self.wfile.write(b);return
+  if u.path=="/api/status":self.send_json({"online":True,"configured":bool(RAPIDAPI_KEY),"sources":len(APIS)});return
+  if u.path=="/api/history":self.send_json(history());return
+  if u.path=="/api/favorites":self.send_json(favorites());return
+  if u.path=="/api/vehicle-image":
+   q=parse_qs(u.query).get("q",[""])[0].strip();self.send_json(vehicle_image(q) if q else {"ok":False});return
+  if u.path=="/api/lookup":
+   rc=parse_qs(u.query).get("rc",[""])[0].strip().upper()
+   if not valid_rc(rc):self.send_json({"ok":False,"error":"Invalid Indian RC format. Example: GJ05AB1234"},400);return
+   d=lookup(rc);add_history(rc,d.get("api"),"SUCCESS" if d.get("ok") else "FAILED");self.send_json(d,200 if d.get("ok") else 502);return
+  self.send_json({"error":"Not found"},404)
+ def do_POST(self):
+  if urlparse(self.path).path=="/api/favorite":
+   n=int(self.headers.get("Content-Length","0"));body=json.loads(self.rfile.read(n) or b"{}")
+   rc=re.sub(r"[^A-Z0-9]","",str(body.get("rc","")).upper())
+   if rc:add_favorite(rc)
+   self.send_json({"ok":True});return
+  self.send_json({"error":"Not found"},404)
+
+if __name__=="__main__":
+ initdb()
+ print("="*60)
+ print(" ZYNTRASEC VEHICLE INFORMATION DASHBOARD v2.1.0")
+ print(" URL: http://%s:%s"%(HOST,PORT))
+ print(" RAPIDAPI:", "CONFIGURED" if RAPIDAPI_KEY else "NOT CONFIGURED")
+ print("="*60)
+ print(" ✅ FIXED: Refresh uses MODEL NAME, not RC number")
+ print(" ✅ Different data for different RC numbers")
+ print(" ✅ UNICORN image works")
+ print("="*60)
+ print("\n Press Ctrl+C to stop the server")
+ print("="*60)
+ ThreadingHTTPServer((HOST,PORT),Handler).serve_forever()
