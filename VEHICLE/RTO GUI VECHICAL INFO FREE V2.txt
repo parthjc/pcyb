@@ -259,7 +259,7 @@ HTML=r'''<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>VEHICLE INFORMATION — ZYNTRASEC</title>
 <style>
 *{box-sizing:border-box}
@@ -375,8 +375,67 @@ button,input{font:inherit}
 .image-source{font-size:12px;color:#5a7a72;margin-top:4px;text-align:center}
 .image-status{font-size:13px;color:#2dff83;margin-top:4px;text-align:center}
 
-@media(max-width:1100px){.app{grid-template-columns:200px 1fr}.workspace{grid-template-columns:1fr}.system{position:static;margin-top:20px}.sidebar{padding-bottom:10px}}
-@media(max-width:700px){.smart-grid{grid-template-columns:1fr}.smart-grid>div:nth-child(even){border-right:0}\n.app{display:block}.sidebar{border-right:0;border-bottom:1px solid var(--line);padding:8px;overflow-x:auto}.brand{display:none}.nav-title{display:none}.nav{display:inline-flex;width:auto;height:38px;border:1px solid var(--line);margin:2px;font-size:10px}.system{display:none}.main{padding:5px}.topbar{height:auto;display:block}.online{margin-top:8px}.searchline{grid-template-columns:1fr 80px 90px}.searchline input,.btn{height:44px;font-size:10px}.cards{grid-template-columns:1fr 1fr}.cards .card:last-child{display:none}.imagebox{height:300px}.twocol{grid-template-columns:1fr}.detail:nth-child(odd){border-right:0}.detail:last-child,.detail:nth-last-child(2){border-bottom:1px solid #0a3025}}
+@media (max-width:1200px){
+ .app{grid-template-columns:210px minmax(0,1fr)}
+ .workspace{grid-template-columns:minmax(0,1fr) minmax(300px,42%)}
+ .searchline{grid-template-columns:minmax(0,1fr) 92px 108px}
+ .card{padding:13px}
+}
+@media (max-width:900px){
+ html,body{width:100%;overflow-x:hidden}
+ .app{display:block;min-height:100vh}
+ .sidebar{position:sticky;top:0;z-index:50;width:100%;border-right:0;border-bottom:1px solid var(--line);padding:7px 8px;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+ .brand{display:flex;height:48px;padding:0 4px;margin-bottom:5px}
+ .brand-icon{font-size:26px}.brand h1{font-size:19px}.brand p{font-size:8px;margin-top:2px}
+ .nav-title{display:none}
+ .nav{display:inline-flex;width:auto;height:38px;border:1px solid var(--line);margin:2px 3px 2px 0;padding:0 10px;gap:7px;font-size:11px;vertical-align:middle}
+ .nav .ico{width:auto;font-size:13px}
+ .system{display:none}
+ .main{padding:8px;min-width:0}
+ .topbar{grid-template-columns:1fr;height:auto;min-height:0;gap:8px;padding:9px}
+ .searchline{grid-template-columns:minmax(0,1fr) 88px 96px;gap:7px}
+ .searchline input,.btn{height:46px;font-size:13px}
+ .online{height:auto;min-height:68px;padding:9px 11px}
+ .online strong{font-size:16px}
+ .workspace{grid-template-columns:1fr;gap:8px}
+ .cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .card{min-height:76px;padding:11px}.card .big{font-size:16px}.card .desc{font-size:11px;margin-top:5px}
+ .section-title{height:44px;font-size:14px;padding:0 11px}.content{padding:9px}
+ .summary{padding:11px}.summary-top{font-size:13px}.summary p{font-size:11px}
+ .smart-grid>div{min-height:46px;padding:8px}.smart-grid b{font-size:11px}.smart-grid span{font-size:12px}
+ .twocol{grid-template-columns:1fr}
+ .detail:nth-child(odd){border-right:0}
+ .detail:last-child,.detail:nth-last-child(2){border-bottom:1px solid #0a3025}
+ .detail .label{font-size:12px;padding:9px}.detail .val{font-size:12px;padding:9px}
+ .imagebox{height:min(58vw,360px);min-height:240px}
+ .vehicle-img{max-width:88%;max-height:78%}
+ .placeholder .car{font-size:65px}
+ .actions .action{height:46px;font-size:12px;padding:0 10px}
+ .telemetry{height:120px;font-size:11px}
+}
+@media (max-width:600px){
+ .brand{height:42px}.brand h1{font-size:17px}.brand p{font-size:7px}
+ .nav{height:34px;padding:0 8px;font-size:10px}
+ .main{padding:5px}
+ .searchline{grid-template-columns:1fr 74px 78px;gap:5px}
+ .searchline input,.btn{height:42px;font-size:11px;padding:0 9px}
+ .cards{grid-template-columns:1fr 1fr}.cards .card:last-child{display:none}
+ .card{min-height:68px}.card .big{font-size:14px}.card .desc{font-size:10px}
+ .imagebox{height:72vw;min-height:220px;max-height:310px}
+ .model{font-size:11px;padding:6px;bottom:7px}
+ .image-controls{gap:5px}.image-btn{padding:6px 9px;font-size:10px}
+ .section-title{font-size:13px}.notice{font-size:11px}
+}
+@media (max-width:380px){
+ .brand{display:none}
+ .sidebar{padding:5px}
+ .nav{height:32px;font-size:9px;padding:0 7px}
+ .searchline{grid-template-columns:1fr 62px 68px}
+ .searchline input,.btn{height:40px;font-size:10px}
+ .cards{gap:4px}.card{padding:8px}.card .big{font-size:12px}.card .desc{font-size:9px}
+ .content{padding:7px}.imagebox{min-height:200px}
+ .detail .label,.detail .val{font-size:11px;padding:8px}
+}
 </style>
 </head>
 <body>
