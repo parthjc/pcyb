@@ -1,0 +1,7 @@
+ZYNTRASEC V33 IMPROVED
+
+Changes:
+- Uses the real Python/pywin32 watchdog as ZYNTRASECWatchdog service instead of the no-op native C# service.
+- Watchdog now performs the intended monitor recovery and periodic integrity checks.
+- Build/install documentation synchronized with actual startup architecture.
+- Source verification and release metadata added.

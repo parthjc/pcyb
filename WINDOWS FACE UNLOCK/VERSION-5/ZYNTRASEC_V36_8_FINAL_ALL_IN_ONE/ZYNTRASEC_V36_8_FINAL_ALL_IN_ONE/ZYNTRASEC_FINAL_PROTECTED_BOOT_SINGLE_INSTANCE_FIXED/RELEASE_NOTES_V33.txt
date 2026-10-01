@@ -1,0 +1,29 @@
+ZYNTRASEC V33 IMPROVED RELEASE NOTES
+================================
+
+1. WATCHDOG ARCHITECTURE FIX
+   The installer now builds ZYNTRASEC_WATCHDOG_SERVICE.exe from
+   ZYNTRASEC_WATCHDOG_SERVICE.py (pywin32) instead of compiling the old minimal
+   C# service. The installed service therefore executes the intended:
+   - active-console-session detection
+   - per-user Event Monitor recovery
+   - periodic SHA-256 integrity checks
+   - watchdog logging
+
+2. STARTUP CONSISTENCY
+   Build scripts, installer behavior, and README now describe the same
+   startup architecture. The service remains Session-0 only; the Event
+   Monitor runs in the interactive user session.
+
+3. SOURCE VERIFICATION
+   VERIFY_SOURCE_V33.bat performs a Python 3.13 syntax/compile check before
+   building the release.
+
+4. DEPENDENCY PINNING
+   requirements-zyntrasec.txt records the exact Python packages expected by the
+   V33 build script.
+
+5. SCOPE
+   Existing authentication behavior is preserved. This is an application-
+   level Windows security layer, not a replacement for BitLocker, Secure
+   Boot, Windows Hello, or a separate standard-user account.

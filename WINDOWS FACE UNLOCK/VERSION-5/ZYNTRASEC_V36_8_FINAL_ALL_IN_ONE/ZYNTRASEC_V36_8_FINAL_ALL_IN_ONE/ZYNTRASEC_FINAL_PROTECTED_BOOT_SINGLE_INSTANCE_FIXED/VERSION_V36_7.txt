@@ -1,0 +1,3 @@
+ZYNTRASEC V36.7 FINAL AUTO GUARD
+
+Automatic boot, logon, sleep/wake and session recovery. Removes fragile token-based GUI launch fallback from normal operation. Adds AUTO_CHECK_ALL.

@@ -1,0 +1,267 @@
+{
+  "package": "ZYNTRASEC",
+  "version": "V36",
+  "type": "FINAL_ALL_IN_ONE",
+  "files": [
+    {
+      "path": "BACKUP_V32/ZYNTRASEC_V32_STABLE_BACKUP.zip",
+      "sha256": "e107dc1c8ee44a069524ee7fa778dfc1763caf35130524ec667c5a2c65ba8ee0",
+      "size": 87265
+    },
+    {
+      "path": "BACKUP_V32/README.txt",
+      "sha256": "a73c998d736d442c10d5a68fa4a8df58931ece48bce475e41d40479983547e2b",
+      "size": 160
+    },
+    {
+      "path": "BUILD_AND_INSTALL_FINAL.bat",
+      "sha256": "6f2b3798c570ed8963748298711a013c498afb360b06db98873484827c493a1a",
+      "size": 4720
+    },
+    {
+      "path": "CLEAN_EXISTING_ZYNTRASEC.bat",
+      "sha256": "c0de132d00411ed68f653974e44142606666ea77fe1ce2a66e129fc95f067b59",
+      "size": 2815
+    },
+    {
+      "path": "FINAL_STABLE_BASELINE.txt",
+      "sha256": "8c3d286b282088e7261a05258d7d06517ecb065bfc4e8b3534cbf7e465ede6be",
+      "size": 865
+    },
+    {
+      "path": "FINAL_VERIFY.bat",
+      "sha256": "6948db8e8c02da55ea0b1b180e56aa9f1cf5e39419f40d128539586505e24f95",
+      "size": 1063
+    },
+    {
+      "path": "FIRST_RUN_SETUP.bat",
+      "sha256": "a282322c26f9b312e6b37d3c74d08b08740424322616b560deb976b008203024",
+      "size": 6541
+    },
+    {
+      "path": "INSTALL_ZYNTRASEC_FINAL.bat",
+      "sha256": "ab23009c69608a27d17a8fcbf9a8bd093aa6203ccd9fe929df0f1b151f182d8d",
+      "size": 3573
+    },
+    {
+      "path": "PACKAGE_SHA256.txt",
+      "sha256": "dd2414e38e347df403d932658e7ef07856bbd92e74769e2287f3de1401ef648f",
+      "size": 1590
+    },
+    {
+      "path": "PACKAGE_SHA256_FINAL.txt",
+      "sha256": "dd2414e38e347df403d932658e7ef07856bbd92e74769e2287f3de1401ef648f",
+      "size": 1590
+    },
+    {
+      "path": "PACKAGE_SHA256_GUIDED.txt",
+      "sha256": "dd2414e38e347df403d932658e7ef07856bbd92e74769e2287f3de1401ef648f",
+      "size": 1590
+    },
+    {
+      "path": "ZYNTRASEC_ADVANCED_CONTROL_CENTER.py",
+      "sha256": "1850370c98ef36a6c97ccf3be5f1769873a6fe7b5954d3d6fcda3c50f3a5384f",
+      "size": 3756
+    },
+    {
+      "path": "ZYNTRASEC_ALL_IN_ONE.py",
+      "sha256": "e5761cfb7707fb87824d806e27f24271e0e7384357fa77cca38c658d57eb6cee",
+      "size": 6400
+    },
+    {
+      "path": "ZYNTRASEC_BACKUP.py",
+      "sha256": "c3425a40cb86a0dc0af5666638aeb36913c2c82eefcb45c6664e900cf2ed268b",
+      "size": 3517
+    },
+    {
+      "path": "ZYNTRASEC_BACKUP_RESTORE.bat",
+      "sha256": "1fd947cfaaabebf8770842929103c06dec652589f589754122f92f436749919a",
+      "size": 274
+    },
+    {
+      "path": "ZYNTRASEC_CONTROL_CENTER.py",
+      "sha256": "8b1830c95429eec98eb50431a66e760a33d4619675c7f30e224dbc48d1047645",
+      "size": 3138
+    },
+    {
+      "path": "ZYNTRASEC_CONTROL_CENTER_V35_BACKUP.py",
+      "sha256": "8b1830c95429eec98eb50431a66e760a33d4619675c7f30e224dbc48d1047645",
+      "size": 3138
+    },
+    {
+      "path": "ZYNTRASEC_DIAGNOSTICS.bat",
+      "sha256": "49577ce37f6f3526a5d686336fc04f5c746f1ee1b8cab1f925cdc5caa76ee395",
+      "size": 180
+    },
+    {
+      "path": "ZYNTRASEC_DIAGNOSTICS.py",
+      "sha256": "cac7cf19b07ac09aa3aba650353efadc1b0c159110b51d5f5888a03fdc9664a4",
+      "size": 1482
+    },
+    {
+      "path": "ZYNTRASEC_EVENT_MONITOR.py",
+      "sha256": "f83c9fbe1e8615769de7658841e4a4b26c757a08f8bc5f988c3f6289d385cb66",
+      "size": 6719
+    },
+    {
+      "path": "ZYNTRASEC_FACE_SETUP.py",
+      "sha256": "26c8f5b4888fb0e2a22c135e13d9438fc87d5b1528973d3d49920a1a29f7b955",
+      "size": 4181
+    },
+    {
+      "path": "ZYNTRASEC_FINAL_TEST.bat",
+      "sha256": "48a698c309554b648ab58810b3673aa0ef4b0fde6529841edfefa2041addb932",
+      "size": 346
+    },
+    {
+      "path": "ZYNTRASEC_FINAL_TEST.py",
+      "sha256": "2d71bdbc05b30a79eec03e10282980398e2e326e3f8e6ba02496e06d04aa2c4f",
+      "size": 3104
+    },
+    {
+      "path": "ZYNTRASEC_HEALTH_CHECK.py",
+      "sha256": "ee493768214369e95ea7181b630b2b3c94df0698211ff43715b7e2ba34ad53d9",
+      "size": 3774
+    },
+    {
+      "path": "ZYNTRASEC_INTEGRITY_CHECK.py",
+      "sha256": "9120f1e76cfeec214d2a7bd196664f4790c7dd4fd75b76e358a9aaaaec99de2a",
+      "size": 1768
+    },
+    {
+      "path": "ZYNTRASEC_LOCKSCREEN.py",
+      "sha256": "dc457691a31aac4a56a7f3af74386196dc487162c0c85ccd681b81a96eb6e3f9",
+      "size": 9904
+    },
+    {
+      "path": "ZYNTRASEC_REPAIR.bat",
+      "sha256": "07a61869edce9fc7f953a705b9d498e637b45c1c4220e0e58d8a6e2ef58436fa",
+      "size": 1700
+    },
+    {
+      "path": "ZYNTRASEC_SECURITY_CONSOLE.py",
+      "sha256": "3140bb57366ac58444210ad8dec2df2b5771064a09883416b9fd045b9809e44d",
+      "size": 3679
+    },
+    {
+      "path": "ZYNTRASEC_SERVICE_REPAIR.bat",
+      "sha256": "c2a224de21be622dea444a8ff7730610d08b00c920b297b292cba5847cf1906b",
+      "size": 1251
+    },
+    {
+      "path": "ZYNTRASEC_SERVICE_REPAIR_ADVANCED.bat",
+      "sha256": "2d5dfa2edf382e28407d14dbd08a4bd348b0f6c80df3ec8f4080b2f0cc3ec147",
+      "size": 1076
+    },
+    {
+      "path": "ZYNTRASEC_WATCHDOG_SERVICE.cs",
+      "sha256": "2d920752904905bb42bcc20eb0fbe4f69ecd4d4d6f4c1a92b71023640bda548e",
+      "size": 1439
+    },
+    {
+      "path": "ZYNTRASEC_WATCHDOG_SERVICE.py",
+      "sha256": "ef6bf99dd98dc207979797645cff9f90e30b6c0c21cbf1e57699d0cb96b378e8",
+      "size": 6295
+    },
+    {
+      "path": "README_ZYNTRASEC_FINAL.txt",
+      "sha256": "14c9a05b430baea983a6ea12538d693fb7909d7874263a2570345c0da8384bbe",
+      "size": 3258
+    },
+    {
+      "path": "README_V36_ALL_IN_ONE.txt",
+      "sha256": "351f2eaa03a4b606945edda20df5631c4556dc7947d827bb9ce3ba5cb1aa2812",
+      "size": 1633
+    },
+    {
+      "path": "RELEASE_NOTES_V33.txt",
+      "sha256": "3ce7a070428890effd64749a116648f30c38dd1281ba4b00c2215ca85782e6a2",
+      "size": 1116
+    },
+    {
+      "path": "RELEASE_NOTES_V34.txt",
+      "sha256": "63271f5c653713307225552d31da46f127824d73f2bd1ba3d827f5d70d53ca5c",
+      "size": 490
+    },
+    {
+      "path": "RELEASE_NOTES_V34_1.txt",
+      "sha256": "d8aac4e687b1244237cd1bee1a3a42736f3ff0ca2bf44e0e67250eb0eb71e87d",
+      "size": 312
+    },
+    {
+      "path": "RELEASE_NOTES_V35.txt",
+      "sha256": "738efcb29e658fa749a8a50b9889460ae2bc472f2ec29b9991a788b78f20a044",
+      "size": 842
+    },
+    {
+      "path": "RELEASE_NOTES_V36.txt",
+      "sha256": "8caf3243e42990a830b0119d000b0560bccfc2859d3d06d2aa9dc5e0c7a6bdf6",
+      "size": 1297
+    },
+    {
+      "path": "START_HERE.bat",
+      "sha256": "1302bf176b2b5a601df3ae1cd7a3261f50f6e0d1fa94bb9ee769aeff84f125eb",
+      "size": 159
+    },
+    {
+      "path": "START_HERE_ALL_IN_ONE.bat",
+      "sha256": "7328611b6e99b127d508fd322eba4c32557458963a5925f553e944005ac894f4",
+      "size": 203
+    },
+    {
+      "path": "UNINSTALL_ZYNTRASEC_FINAL.bat",
+      "sha256": "f008998c86db292fa6d3422300838461f16db90bf6e8917980f5f99b5c8f74c9",
+      "size": 3073
+    },
+    {
+      "path": "VERIFY_ZYNTRASEC_FINAL.bat",
+      "sha256": "d2025b586e0a58a63b27c8c35e1b384baae841f046b5b7a077fbfea966912399",
+      "size": 1551
+    },
+    {
+      "path": "VERIFY_SOURCE_V33.bat",
+      "sha256": "cce4b76d4ec2a3fd6ca15e3e34da50eb69ed7a637262ae06f23c5a0bea788482",
+      "size": 494
+    },
+    {
+      "path": "VERSION_V33.txt",
+      "sha256": "01c6e5f04f05e6016dd64f6ec3be5aa1c7443b7d12c331152d2876488b77e055",
+      "size": 346
+    },
+    {
+      "path": "VERSION_V34.txt",
+      "sha256": "6aa2d7fd821153cbe8009a957c0b5268322047632fc31ef0ceea54dc2483e1ae",
+      "size": 21
+    },
+    {
+      "path": "VERSION_V34_1.txt",
+      "sha256": "f9c2cd7dce81fcbd261d775cc85cee32b628a7694295d8a182013c3cd0affce9",
+      "size": 97
+    },
+    {
+      "path": "VERSION_V35.txt",
+      "sha256": "f638000c10b2d17cab9b0b868371307297f0df42cb06fb7cbb1fb0e6a29d2e49",
+      "size": 30
+    },
+    {
+      "path": "VERSION_V36.txt",
+      "sha256": "3940cde23a444fd479c83121cad6edb83cc4017cb5aa754a6f3db4273600fc96",
+      "size": 199
+    },
+    {
+      "path": "common.py",
+      "sha256": "395768b45814d501d98190ac81af96e6f34aeb10c9af9ca27d8e2be104a945f4",
+      "size": 17510
+    },
+    {
+      "path": "haarcascade_eye.xml",
+      "sha256": "71cc64fc305a355dc60067880f6fbbd43dd155bd63ee3844661a1bda34b2fd8c",
+      "size": 341406
+    },
+    {
+      "path": "requirements-zyntrasec.txt",
+      "sha256": "4423d4f91d47eaa64ce6c74d58a42fc464a121b1f95921ccb8d4ba532c17f3c8",
+      "size": 164
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+ZYNTRASEC V36.3
+DuplicateTokenEx argument fix for pywin32 311+
+
+V36.3 FIX: explicit win32security.SECURITY_ATTRIBUTES objects are passed to CreateProcessAsUser for pywin32 311+ compatibility; this addresses "The object is not a PySECURITY_ATTRIBUTES object" during monitor launch.

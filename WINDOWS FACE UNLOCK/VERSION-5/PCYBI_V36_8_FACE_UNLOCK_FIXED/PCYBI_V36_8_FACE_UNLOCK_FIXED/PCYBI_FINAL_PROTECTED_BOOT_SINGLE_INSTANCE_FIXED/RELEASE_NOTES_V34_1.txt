@@ -1,9 +1,0 @@
-PCYBI V34.1
-
-FIXED
-- Windows Service error 1053 caused by frozen-service SCM dispatch startup.
-- PCYBI_WATCHDOG_SERVICE.py now explicitly initializes the pywin32 service dispatcher when launched by SCM.
-- Added PCYBI_SERVICE_REPAIR.bat.
-
-NOTE
-- Runtime service startup must be verified on the target Windows PC.

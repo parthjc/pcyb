@@ -1,0 +1,16 @@
+ZYNTRASEC V36.3
+
+Fixed the second user-session launch failure seen after the DuplicateTokenEx fix.
+
+Error addressed:
+TypeError: The object is not a PySECURITY_ATTRIBUTES object
+
+Root cause: some pywin32 311+ builds require explicit SECURITY_ATTRIBUTES objects for the process/thread security-attribute parameters of CreateProcessAsUser.
+
+Fix:
+- Creates explicit win32security.SECURITY_ATTRIBUTES() objects.
+- Sets bInheritHandle=False for both.
+- Passes them to CreateProcessAsUser.
+- Adds launch_api marker to watchdog.log.
+
+Also keep the V36.2 DuplicateTokenEx third-argument fix (integer 0).

@@ -1,4 +1,0 @@
-PCYBI V36.6 FINAL AUTO-LOCK ALL-IN-ONE
-
-Fix: explicit interactive logon task for PCYBI Lock Screen plus Event Monitor startup launch.
-This ensures the PCYBI overlay is launched automatically after user sign-in; the Event Monitor handles wake/unlock recovery.

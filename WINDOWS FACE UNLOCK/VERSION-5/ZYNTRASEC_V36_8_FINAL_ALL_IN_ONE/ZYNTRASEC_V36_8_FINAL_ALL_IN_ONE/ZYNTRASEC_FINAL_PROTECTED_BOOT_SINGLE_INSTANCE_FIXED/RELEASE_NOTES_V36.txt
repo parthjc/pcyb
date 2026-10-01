@@ -1,0 +1,36 @@
+ZYNTRASEC V36 // FINAL ALL-IN-ONE HARDENED RELEASE
+==============================================
+
+V36 integrates the complete ZYNTRASEC workflow into one package.
+
+Included:
+- Owner face registration and master password recovery
+- Live face/liveness flow from the existing baseline
+- Real pywin32 Windows watchdog service
+- Interactive user Event Monitor with single-instance protection
+- Lock screen and wake/session recovery
+- SHA-256 integrity baseline and tamper log
+- Security audit logging
+- Security Console and Advanced Control Center
+- New ZYNTRASEC ALL-IN-ONE control center
+- Health report and diagnostics
+- Encrypted AES-GCM backup/restore with legacy V34 backup compatibility
+- Service repair and final diagnostic test tools
+- Existing V32 backup preserved
+
+Hardening changes:
+- Watchdog integrity-check exceptions now fail closed instead of being treated as healthy.
+- Watchdog writes an explicit SERVICE_RUNNING event to its log.
+- V36 backup format is versioned while V34 backup files remain restorable.
+- Installer/build scripts include the new all-in-one console and final test executable.
+
+Important:
+This remains application-level protection. A Windows administrator can disable/remove
+software. For platform-level protection use Secure Boot, BitLocker and a standard daily
+user account.
+
+V36.1 FINAL STABILITY HOTFIX
+- Windows watchdog uses delayed automatic startup after owner setup.
+- Watchdog continuously retries user-session monitor launch after reboot/logon.
+- Logon scheduled task remains as a per-user fallback.
+- Preserves existing authentication, backup, integrity, audit, diagnostics and control-center features.

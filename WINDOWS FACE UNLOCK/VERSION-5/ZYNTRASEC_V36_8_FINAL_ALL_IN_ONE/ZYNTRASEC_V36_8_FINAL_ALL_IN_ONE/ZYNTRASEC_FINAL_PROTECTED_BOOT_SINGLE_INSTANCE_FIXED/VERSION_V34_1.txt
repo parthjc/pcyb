@@ -1,0 +1,2 @@
+ZYNTRASEC V34.1
+Service 1053 hotfix: explicit pywin32 SCM dispatcher for frozen PyInstaller service.

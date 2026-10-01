@@ -1,7 +1,0 @@
-V36.7
-- Auto Guard for boot/logon/sleep-wake/session events.
-- Scheduled interactive monitor is the only normal GUI launch path.
-- Removed CreateProcessAsUser fallback from normal watchdog operation to avoid PySECURITY_ATTRIBUTES errors.
-- Added scheduled-task settings for battery/wake availability.
-- Added PCYBI_AUTO_CHECK_ALL.bat.
-- Preserves existing V36.6 backups and authentication data.

@@ -1,3 +1,0 @@
-PCYBI V36.5 FINAL AUTO-HEAL ALL-IN-ONE
-
-Automatic service path registration, delayed-auto watchdog, interactive logon monitor task, automatic service repair, and watchdog task-first monitor launch.
