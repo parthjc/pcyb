@@ -1,0 +1,7 @@
+V36.6 FINAL AUTO-LOCK
+- Added PCYBI Lock Screen scheduled task at interactive user logon.
+- Kept PCYBI User Event Monitor logon task.
+- Event Monitor now explicitly launches the lock screen on startup.
+- Existing single-instance mutex prevents duplicate lock overlays.
+- Wake/unlock monitoring retained.
+- No claim of true Windows secure-desktop lock; this is the PCYBI fullscreen security overlay.

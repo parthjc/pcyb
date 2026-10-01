@@ -1,0 +1,9 @@
+V36.5 FINAL AUTO-HEAL
+
+- Watchdog prefers the registered interactive scheduled task instead of fragile service-to-user token launch APIs.
+- CreateProcessAsUser remains only as a fallback.
+- Installer deletes/recreates the watchdog service so the registered ImagePath always points to the current ProgramData build.
+- Automatic service repair is included.
+- Delayed-auto watchdog + interactive logon task are recreated automatically.
+- Build/install performs a post-install repair and service verification.
+- First-run setup no longer pauses on informational screens.

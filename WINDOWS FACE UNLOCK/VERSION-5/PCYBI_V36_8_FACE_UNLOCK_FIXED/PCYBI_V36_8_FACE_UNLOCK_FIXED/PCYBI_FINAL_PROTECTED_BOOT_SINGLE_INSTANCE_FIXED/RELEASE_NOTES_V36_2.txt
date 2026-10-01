@@ -1,0 +1,13 @@
+PCYBI V36.3
+
+FIXED
+- Fixed watchdog user-session launch failure: DuplicateTokenEx() argument 3 now uses integer 0 instead of None for pywin32 311+.
+- Improved watchdog launch error formatting.
+
+Expected log after fix:
+MONITOR_LAUNCHED session=1
+
+This patch addresses the reported:
+TypeError("DuplicateTokenEx() argument 3 must be int, not None")
+
+V36.3 FIX: explicit win32security.SECURITY_ATTRIBUTES objects are passed to CreateProcessAsUser for pywin32 311+ compatibility; this addresses "The object is not a PySECURITY_ATTRIBUTES object" during monitor launch.

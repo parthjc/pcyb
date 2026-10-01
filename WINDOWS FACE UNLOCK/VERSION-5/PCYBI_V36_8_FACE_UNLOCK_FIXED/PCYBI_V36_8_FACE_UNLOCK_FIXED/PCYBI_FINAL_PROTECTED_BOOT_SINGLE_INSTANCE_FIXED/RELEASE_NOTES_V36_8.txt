@@ -1,0 +1,16 @@
+PCYBI V36.8 - FACE UNLOCK STABILITY FIX
+
+Fixes the V36.7 live-face unlock path being too strict for normal webcam conditions.
+
+Changes:
+- LBPH recognition threshold raised from 55 to 65 to tolerate normal lighting/camera variation.
+- Live identity consensus changed to 6 matching frames and 55% of detected frames.
+- Temporal motion check changed from a hard high-motion gate to a gentler supporting signal.
+- Camera frame drops are tolerated.
+- Existing master-password fallback remains available.
+- No face images are added by this patch.
+
+Verification:
+- Python syntax compilation passed for the face/authentication modules.
+
+Runtime webcam/authentication behavior must still be tested on the target Windows PC.

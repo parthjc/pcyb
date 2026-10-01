@@ -1,0 +1,8 @@
+PCYBI V34 ALL-IN-ONE
+====================
+
+Integrated: persistent authentication lockout, chained security audit log, expanded SHA-256 integrity baseline, diagnostics, repair workflow, and unified control center.
+
+Existing V33 functionality is preserved where possible. Windows service/runtime behavior must be tested on an actual Windows 10/11 machine.
+
+Security note: software-only face recognition/liveness is not equivalent to Windows Hello or hardware-backed biometric authentication.

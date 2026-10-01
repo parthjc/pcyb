@@ -1,0 +1,29 @@
+PCYBI V32 FINAL STABLE BASELINE
+
+This package is frozen from the V4 build that was reported working on the
+owner's main PC.
+
+WORKING BASELINE:
+- V32 face registration
+- Live face verification
+- Passive liveness / movement checks
+- Master-password fallback
+- Watchdog/service protection
+- Event monitoring
+- Lock / unlock / wake handling
+- Integrity baseline
+- Safe cleanup + external backup before reinstall
+
+IMPORTANT:
+Do not modify the V32 core files in this package casually.
+For future experiments, make a copy first.
+
+BACKUP LOCATION USED BY THE INSTALLER:
+C:\ProgramData\PCYBI_Backups\<timestamp>
+
+This is an application-level security layer after Windows sign-in. It is not
+a replacement for Winlogon, Windows Hello, BitLocker, or Secure Boot.
+Windows PIN/password should remain available as an account recovery method.
+
+FINAL STATUS:
+FROZEN STABLE BASELINE

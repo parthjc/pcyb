@@ -1,0 +1,8 @@
+numpy==2.1.3
+opencv-contrib-python==4.13.0.92
+pyinstaller==6.22.3
+pywinauto==0.6.9
+pywin32==311
+
+# Optional Windows-native recovery encryption
+cryptography>=44,<47
